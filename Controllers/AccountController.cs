@@ -1,12 +1,12 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Onudhabon_ISD.Data;
 using Onudhabon_ISD.Models;
-
 using Onudhabon_ISD.Services;
 
 namespace Onudhabon_ISD.Controllers
@@ -206,6 +206,32 @@ namespace Onudhabon_ISD.Controllers
 
             TempData["SuccessMessage"] = "Account registered successfully! Please sign in with your credentials.";
             return RedirectToAction("Login", new { returnUrl });
+        }
+
+        [HttpGet]
+        [Authorize]
+        public async Task<IActionResult> Profile()
+        {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var email = User.FindFirstValue(ClaimTypes.Email);
+
+            User? user = null;
+            if (int.TryParse(userIdStr, out int userId))
+            {
+                user = await _context.Users.FindAsync(userId);
+            }
+
+            if (user == null && !string.IsNullOrEmpty(email))
+            {
+                user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
+            }
+
+            if (user == null)
+            {
+                return RedirectToAction(nameof(Login));
+            }
+
+            return View(user);
         }
 
         [HttpPost]
