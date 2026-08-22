@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Onudhabon_ISD.Data;
 
@@ -11,9 +12,11 @@ using Onudhabon_ISD.Data;
 namespace Onudhabon_ISD.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260822144937_AddTablesAndUpgradeUsers")]
+    partial class AddTablesAndUpgradeUsers
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -39,6 +42,10 @@ namespace Onudhabon_ISD.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("Subjects")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<int?>("__v")
                         .ValueGeneratedOnAdd()
@@ -207,6 +214,56 @@ namespace Onudhabon_ISD.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Lectures", (string)null);
+                });
+
+            modelBuilder.Entity("Onudhabon_ISD.Models.LocalGuardian", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Password")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Roles")
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("Local Guardian");
+
+                    b.Property<int?>("__v")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LocalGuardians", (string)null);
                 });
 
             modelBuilder.Entity("Onudhabon_ISD.Models.Material", b =>
@@ -550,35 +607,6 @@ namespace Onudhabon_ISD.Migrations
                         .IsUnique();
 
                     b.ToTable("Users", (string)null);
-                });
-
-            modelBuilder.Entity("Onudhabon_ISD.Models.ClassPlan", b =>
-                {
-                    b.OwnsMany("Onudhabon_ISD.Models.SubjectDetail", "Subjects", b1 =>
-                        {
-                            b1.Property<int>("ClassPlanId");
-
-                            b1.Property<int>("__synthesizedOrdinal")
-                                .ValueGeneratedOnAddOrUpdate();
-
-                            b1.Property<string>("Name")
-                                .IsRequired();
-
-                            b1.Property<int>("TotalLectures");
-
-                            b1.HasKey("ClassPlanId", "__synthesizedOrdinal");
-
-                            b1.ToTable("ClassPlans");
-
-                            b1
-                                .ToJson("Subjects")
-                                .HasColumnType("nvarchar(max)");
-
-                            b1.WithOwner()
-                                .HasForeignKey("ClassPlanId");
-                        });
-
-                    b.Navigation("Subjects");
                 });
 #pragma warning restore 612, 618
         }
