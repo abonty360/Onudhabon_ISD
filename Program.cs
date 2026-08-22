@@ -3,6 +3,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Onudhabon_ISD.Data;
 using Onudhabon_ISD.Models;
+using Onudhabon_ISD.Services;
+
+// Load environment variables from .env file
+DotNetEnv.Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,6 +14,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Cloudinary & Storage Services
+builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 
 // Password Hasher for User
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
