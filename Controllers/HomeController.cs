@@ -23,14 +23,11 @@ namespace Onudhabon_ISD.Controllers
             return View();
         }
 
-        [Authorize]
+        [Authorize(Roles = "Admin")]
         [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-        public async Task<IActionResult> Users()
+        public IActionResult Users()
         {
-            var users = await _context.Users
-                .OrderByDescending(u => u.CreatedAt)
-                .ToListAsync();
-            return View(users);
+            return RedirectToAction("Dashboard", "Admin", new { tab = "volunteers" });
         }
 
         public IActionResult Privacy()

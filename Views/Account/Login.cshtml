@@ -131,9 +131,43 @@
         </div>
     </div>
 
+    <!-- Status Notification Modal (Pop-up for Declined / Restricted Volunteers) -->
+    @if (ViewBag.ModalMessage != null)
+    {
+        <div class="modal fade" id="statusNotificationModal" tabindex="-1" aria-labelledby="statusNotificationModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content rounded-4 border-0 shadow-lg p-3">
+                    <div class="modal-header border-bottom-0 pb-0">
+                        <div class="rounded-circle p-2.5 @(ViewBag.RestrictedModal == true ? "bg-danger-subtle text-danger" : "bg-warning-subtle text-warning") me-2 d-inline-flex align-items-center justify-content-center">
+                            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <h5 class="modal-title fw-bold text-dark" id="statusNotificationModalLabel">@(ViewBag.ModalTitle ?? "Account Status Notice")</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body py-3">
+                        <p class="text-secondary mb-0" style="font-size: 0.98rem; line-height: 1.6;">@ViewBag.ModalMessage</p>
+                    </div>
+                    <div class="modal-footer border-top-0 pt-0">
+                        <button type="button" class="btn btn-primary rounded-pill px-4 py-2" data-bs-dismiss="modal">Acknowledge & Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        $(document).ready(function() {
+            var modalEl = document.getElementById('statusNotificationModal');
+            if (modalEl) {
+                var modal = new bootstrap.Modal(modalEl);
+                modal.show();
+            }
+        });
+
         function togglePasswordVisibility(inputId, btn) {
             const input = document.getElementById(inputId);
             if (input.type === 'password') {
