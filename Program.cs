@@ -18,6 +18,17 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Cloudinary & Storage Services
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 
+// AI Chat Service (Gemini Cloud API or Local Ollama)
+var aiProvider = builder.Configuration["AiProvider"] ?? "Gemini";
+if (string.Equals(aiProvider, "Ollama", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton<ILlmChatService, OllamaChatService>();
+}
+else
+{
+    builder.Services.AddSingleton<ILlmChatService, GeminiChatService>();
+}
+
 // Password Hasher for User
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 
