@@ -18,16 +18,13 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Cloudinary & Storage Services
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 
-// AI Chat Service (Gemini Cloud API or Local Ollama)
-var aiProvider = builder.Configuration["AiProvider"] ?? "Gemini";
-if (string.Equals(aiProvider, "Ollama", StringComparison.OrdinalIgnoreCase))
-{
-    builder.Services.AddSingleton<ILlmChatService, OllamaChatService>();
-}
-else
-{
-    builder.Services.AddSingleton<ILlmChatService, GeminiChatService>();
-}
+// HttpClient and Memory Cache
+builder.Services.AddHttpClient();
+builder.Services.AddMemoryCache();
+
+// AI & Knowledge Services (Gemini Cloud API & PDF Knowledge Base)
+builder.Services.AddSingleton<ILlmChatService, GeminiChatService>();
+builder.Services.AddScoped<IPdfKnowledgeService, PdfKnowledgeService>();
 
 // Password Hasher for User
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();

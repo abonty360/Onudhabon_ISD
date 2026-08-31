@@ -96,10 +96,26 @@
 
         <!-- Footer / Input Box -->
         <div class="chat-footer">
+            <!-- Active Attached PDF Badge -->
+            <div id="active-pdf-badge" class="active-pdf-badge" style="display: none;">
+                <div class="active-pdf-info">
+                    <span class="pdf-icon">📄</span>
+                    <span id="active-pdf-name" class="pdf-name text-truncate">document.pdf</span>
+                    <span id="active-pdf-words" class="pdf-meta"></span>
+                </div>
+                <button type="button" id="remove-pdf-btn" class="remove-pdf-btn" title="Remove attached PDF" aria-label="Remove attached PDF">✕</button>
+            </div>
+
             <form id="chat-form" class="chat-input-form" onsubmit="return false;">
+                <input type="file" id="chat-pdf-file-input" accept=".pdf,application/pdf" style="display: none;" />
                 <div class="input-wrapper">
+                    <button type="button" id="chat-attach-pdf-btn" class="chat-attach-btn" title="Attach & Learn from PDF document" aria-label="Attach PDF">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                        </svg>
+                    </button>
                     <input type="text" id="chat-input" class="chat-input-field" 
-                           placeholder="Ask anything about courses, materials..." 
+                           placeholder="Ask a question or upload a PDF to learn from..." 
                            autocomplete="off" maxlength="1000" />
                     <button type="button" id="chat-send-btn" class="chat-send-btn" title="Send message" aria-label="Send message">
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -110,7 +126,7 @@
                 </div>
             </form>
             <div class="chat-footer-note">
-                ⚡ Powered by Onudhabon AI • Press Enter to send
+                ⚡ Powered by Gemini AI • Supports PDF Document Learning
             </div>
         </div>
     </div>
@@ -603,15 +619,96 @@
         padding: 10px 14px 8px;
     }
 
+    /* Active Attached PDF Badge */
+    .active-pdf-badge {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+        border: 1px solid #bfdbfe;
+        border-radius: 8px;
+        padding: 5px 9px;
+        margin-bottom: 8px;
+        font-size: 0.76rem;
+        color: #1e40af;
+        animation: msgFadeIn 0.2s ease-out;
+    }
+
+    .active-pdf-info {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        overflow: hidden;
+    }
+
+    .active-pdf-badge .pdf-name {
+        font-weight: 700;
+        max-width: 180px;
+    }
+
+    .active-pdf-badge .pdf-meta {
+        color: #3b82f6;
+        font-size: 0.7rem;
+    }
+
+    .remove-pdf-btn {
+        background: rgba(30, 64, 175, 0.1);
+        border: none;
+        color: #1e40af;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+        padding: 0;
+        line-height: 1;
+    }
+
+    .remove-pdf-btn:hover {
+        background: #ef4444;
+        color: #ffffff;
+    }
+
     .input-wrapper {
         position: relative;
         display: flex;
         align-items: center;
     }
 
+    .chat-attach-btn {
+        position: absolute;
+        left: 6px;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: none;
+        background: transparent;
+        color: #64748b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.18s ease;
+        z-index: 2;
+    }
+
+    .chat-attach-btn:hover {
+        color: #2563eb;
+        background-color: #eff6ff;
+    }
+
+    .chat-attach-btn.has-file {
+        color: #2563eb;
+        background-color: #dbeafe;
+    }
+
     .chat-input-field {
         width: 100%;
-        padding: 9px 44px 9px 14px;
+        padding: 9px 44px 9px 40px;
         font-size: 0.875rem;
         color: #0f172a;
         background: #f8fafc;
@@ -648,6 +745,7 @@
         cursor: pointer;
         transition: all 0.2s ease;
         box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+        z-index: 2;
     }
 
     .chat-send-btn:hover:not(:disabled) {
@@ -706,6 +804,17 @@
         const chatBody = document.getElementById('chat-body');
         const suggestionsBox = document.getElementById('chat-suggestions');
         const welcomeRow = document.getElementById('initial-welcome-row');
+
+        // PDF Attachment elements
+        const attachPdfBtn = document.getElementById('chat-attach-pdf-btn');
+        const pdfFileInput = document.getElementById('chat-pdf-file-input');
+        const activePdfBadge = document.getElementById('active-pdf-badge');
+        const activePdfNameSpan = document.getElementById('active-pdf-name');
+        const activePdfWordsSpan = document.getElementById('active-pdf-words');
+        const removePdfBtn = document.getElementById('remove-pdf-btn');
+
+        let currentPdfText = null;
+        let currentPdfName = null;
 
         // Formats current time into a clean "12:15 PM" format
         function getCurrentTime() {
@@ -881,7 +990,7 @@
             }
         });
 
-        // Reset chat history
+        // Reset chat history and PDF attachment
         if (clearBtn) {
             clearBtn.addEventListener('click', () => {
                 if (confirm('Clear chat history and start a fresh session?')) {
@@ -892,6 +1001,7 @@
                     if (suggestionsBox) {
                         suggestionsBox.style.display = 'block';
                     }
+                    detachPdf();
                     scrollChatToBottom();
                 }
             });
@@ -905,6 +1015,100 @@
                     chatInput.value = chip.dataset.prompt;
                     sendMessage();
                 }
+            });
+        }
+
+        // Attach PDF trigger
+        if (attachPdfBtn && pdfFileInput) {
+            attachPdfBtn.addEventListener('click', () => {
+                pdfFileInput.click();
+            });
+
+            pdfFileInput.addEventListener('change', async (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+
+                if (!file.name.toLowerCase().endsWith('.pdf')) {
+                    alert('Please select a valid .pdf file.');
+                    pdfFileInput.value = '';
+                    return;
+                }
+
+                if (file.size > 25 * 1024 * 1024) {
+                    alert('File size exceeds the 25MB limit.');
+                    pdfFileInput.value = '';
+                    return;
+                }
+
+                // Show processing indicator in chat
+                const loadRow = document.createElement('div');
+                loadRow.id = 'pdf-upload-loader';
+                loadRow.className = 'chat-msg-row bot-msg-row';
+                loadRow.innerHTML = `
+                    <div class="bot-avatar-col">
+                        <img src="${BOT_AVATAR_URL}" alt="Onudhabon AI" class="bot-avatar-img rounded-circle shadow-sm" width="34" height="34" />
+                    </div>
+                    <div class="msg-bubble-wrapper">
+                        <div class="msg-sender-meta">
+                            <span class="sender-name">Onudhabon AI</span>
+                            <span class="sender-badge" style="background-color: #e0f2fe; color: #0284c7;">Analyzing PDF</span>
+                        </div>
+                        <div class="chat-bubble bot-bubble shadow-sm">
+                            Reading and extracting knowledge from <strong>${escapeHtml(file.name)}</strong>...
+                        </div>
+                    </div>
+                `;
+                chatBody.appendChild(loadRow);
+                scrollChatToBottom();
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const res = await fetch('/Chat/UploadPdfForChat', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await res.json();
+                    loadRow.remove();
+
+                    if (data.success) {
+                        currentPdfText = data.text;
+                        currentPdfName = data.fileName;
+
+                        // Update Active PDF Banner
+                        if (activePdfNameSpan) activePdfNameSpan.textContent = data.fileName;
+                        if (activePdfWordsSpan) activePdfWordsSpan.textContent = `• (${data.wordCount} words)`;
+                        if (activePdfBadge) activePdfBadge.style.display = 'flex';
+                        attachPdfBtn.classList.add('has-file');
+
+                        renderBubble('bot', `📖 I've successfully read and indexed **${data.fileName}** (${data.wordCount} words)!\n\nYou can now ask me to:\n• Summarize the document\n• Explain key concepts, questions, or formulas\n• Answer any questions based on this PDF.`);
+                    } else {
+                        renderBubble('bot', `⚠️ Could not process PDF: ${data.message || 'Unknown error'}`);
+                    }
+                } catch (err) {
+                    loadRow.remove();
+                    renderBubble('bot', `⚠️ Failed to upload and process the PDF document. Please verify the file and try again.`);
+                } finally {
+                    pdfFileInput.value = '';
+                }
+            });
+        }
+
+        // Remove / Detach PDF
+        function detachPdf() {
+            currentPdfText = null;
+            currentPdfName = null;
+            if (activePdfBadge) activePdfBadge.style.display = 'none';
+            if (attachPdfBtn) attachPdfBtn.classList.remove('has-file');
+        }
+
+        if (removePdfBtn) {
+            removePdfBtn.addEventListener('click', () => {
+                const oldName = currentPdfName;
+                detachPdf();
+                renderBubble('bot', `📄 Detached **${oldName || 'PDF'}**. I am back to general academic assistance and platform navigation.`);
             });
         }
 
@@ -941,7 +1145,7 @@
                 <div class="msg-bubble-wrapper">
                     <div class="msg-sender-meta">
                         <span class="sender-name">Onudhabon AI</span>
-                        <span class="sender-badge" style="background-color: #f1f5f9; color: #64748b;">Thinking</span>
+                        <span class="sender-badge" style="background-color: #f1f5f9; color: #64748b;">${currentPdfText ? 'Analyzing Document' : 'Thinking'}</span>
                     </div>
                     <div class="chat-bubble bot-bubble typing-bubble shadow-sm">
                         <span class="typing-dot"></span>
@@ -954,13 +1158,15 @@
             scrollChatToBottom();
 
             try {
-                // Send current message and recent history context to server
+                // Send current message and recent history context and active PDF text to server
                 const res = await fetch('/Chat/SendMessage', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         message: text,
-                        history: history.slice(-6)
+                        history: history.slice(-6),
+                        attachedPdfText: currentPdfText,
+                        attachedPdfName: currentPdfName
                     })
                 });
 
