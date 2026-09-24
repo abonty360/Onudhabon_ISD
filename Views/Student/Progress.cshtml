@@ -311,7 +311,7 @@
                                                     <div class="d-flex align-items-center gap-1.5 flex-grow-1 me-2 text-truncate">
                                                         <span class="fw-bold text-dark text-truncate" title="@sub.SubjectName">@sub.SubjectName</span>
                                                         <span class="badge @sub.GradeBadgeClass px-1.5 py-0.5 rounded-1 cardSubGradeBadge_@(student.Id)_@sIdx" style="font-size: 0.68rem;" title="Exam Grade: @sub.DisplayGrade">
-                                                            @(string.IsNullOrWhiteSpace(sub.Grade) ? "â€”" : sub.Grade)
+                                                            @(string.IsNullOrWhiteSpace(sub.Grade) ? "—" : sub.Grade)
                                                         </span>
                                                     </div>
                                                     <span class="text-muted flex-shrink-0" style="font-size: 0.76rem;" id="cardSubDetail_@(student.Id)_@sIdx">
