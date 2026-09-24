@@ -12,15 +12,18 @@ namespace Onudhabon_ISD.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ICloudinaryService _cloudinaryService;
+        private readonly IVolunteerRankingService _rankingService;
         private readonly ILogger<AdminController> _logger;
 
         public AdminController(
             ApplicationDbContext context,
             ICloudinaryService cloudinaryService,
+            IVolunteerRankingService rankingService,
             ILogger<AdminController> logger)
         {
             _context = context;
             _cloudinaryService = cloudinaryService;
+            _rankingService = rankingService;
             _logger = logger;
         }
 
@@ -29,8 +32,11 @@ namespace Onudhabon_ISD.Controllers
         public async Task<IActionResult> Index() => await Dashboard();
 
         [HttpGet]
-        public async Task<IActionResult> Dashboard(string? tab = "volunteers")
+        public async Task<IActionResult> Dashboard(string? tab = "volunteers", int? month = null, int? year = null)
         {
+            var selectedMonth = month.HasValue && month.Value >= 1 && month.Value <= 12 ? month.Value : DateTime.UtcNow.Month;
+            var selectedYear = year.HasValue && year.Value >= 2020 && year.Value <= 2035 ? year.Value : DateTime.UtcNow.Year;
+
             var users = await _context.Users
                 .OrderByDescending(u => u.CreatedAt)
                 .ToListAsync();
@@ -55,6 +61,14 @@ namespace Onudhabon_ISD.Controllers
                 .OrderByDescending(d => d.CreatedAt)
                 .ToListAsync();
 
+            var rankingViewModel = _rankingService.GenerateMonthlyRankings(
+                users,
+                lectures,
+                materials,
+                students,
+                selectedMonth,
+                selectedYear);
+
             var viewModel = new AdminDashboardViewModel
             {
                 Users = users,
@@ -62,7 +76,8 @@ namespace Onudhabon_ISD.Controllers
                 Materials = materials,
                 ForumPosts = forumPosts,
                 Students = students,
-                Donations = donations
+                Donations = donations,
+                Ranking = rankingViewModel
             };
 
             ViewBag.ActiveTab = tab ?? "volunteers";
@@ -80,6 +95,22 @@ namespace Onudhabon_ISD.Controllers
             user.VerificationStatus = "Active";
             user.IsVerified = true;
             user.IsRestricted = false;
+
+            if (!string.IsNullOrWhiteSpace(user.FullName))
+            {
+                var notification = new Notification
+                {
+                    User = user.FullName,
+                    Sender = User.Identity?.Name ?? "Admin",
+                    Post = $"{user.Role} Account",
+                    Type = "UserApproved",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow,
+                    __v = 0
+                };
+                _context.Notifications.Add(notification);
+            }
+
             await _context.SaveChangesAsync();
 
             TempData["SuccessMessage"] = $"Volunteer '{user.FullName}' ({user.Role}) has been approved. Status is now Active.";
@@ -126,6 +157,22 @@ namespace Onudhabon_ISD.Controllers
             if (lecture == null) return NotFound();
 
             lecture.Status = "Active";
+
+            if (!string.IsNullOrWhiteSpace(lecture.Instructor))
+            {
+                var notification = new Notification
+                {
+                    User = lecture.Instructor,
+                    Sender = User.Identity?.Name ?? "Admin",
+                    Post = lecture.Title,
+                    Type = "LectureApproved",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow,
+                    __v = 0
+                };
+                _context.Notifications.Add(notification);
+            }
+
             await _context.SaveChangesAsync();
 
             TempData["SuccessMessage"] = $"Lecture '{lecture.Title}' has been approved and is now live for all learners.";
@@ -156,6 +203,22 @@ namespace Onudhabon_ISD.Controllers
             if (material == null) return NotFound();
 
             material.Status = "Active";
+
+            if (!string.IsNullOrWhiteSpace(material.Instructor))
+            {
+                var notification = new Notification
+                {
+                    User = material.Instructor,
+                    Sender = User.Identity?.Name ?? "Admin",
+                    Post = material.Title,
+                    Type = "MaterialApproved",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow,
+                    __v = 0
+                };
+                _context.Notifications.Add(notification);
+            }
+
             await _context.SaveChangesAsync();
 
             TempData["SuccessMessage"] = $"Material '{material.Title}' has been approved and is available for download.";
@@ -186,6 +249,22 @@ namespace Onudhabon_ISD.Controllers
             if (post == null) return NotFound();
 
             post.Status = "Active";
+
+            if (!string.IsNullOrWhiteSpace(post.Author))
+            {
+                var notification = new Notification
+                {
+                    User = post.Author,
+                    Sender = User.Identity?.Name ?? "Admin",
+                    Post = post.Title,
+                    Type = "PostApproved",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow,
+                    __v = 0
+                };
+                _context.Notifications.Add(notification);
+            }
+
             await _context.SaveChangesAsync();
 
             TempData["SuccessMessage"] = $"Forum post '{post.Title}' has been approved and is now live in the community forum.";
@@ -216,6 +295,36 @@ namespace Onudhabon_ISD.Controllers
             if (student == null) return NotFound();
 
             student.Status = "Active";
+
+            string? recipientGuardian = !string.IsNullOrWhiteSpace(student.GuardianName) ? student.GuardianName : null;
+            if (string.IsNullOrWhiteSpace(recipientGuardian) && !string.IsNullOrWhiteSpace(student.GuardianId))
+            {
+                if (int.TryParse(student.GuardianId, out int guardianUid))
+                {
+                    var gUser = await _context.Users.FindAsync(guardianUid);
+                    recipientGuardian = gUser?.FullName;
+                }
+                else
+                {
+                    recipientGuardian = student.GuardianId;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(recipientGuardian))
+            {
+                var notification = new Notification
+                {
+                    User = recipientGuardian,
+                    Sender = User.Identity?.Name ?? "Admin",
+                    Post = student.FullName,
+                    Type = "StudentApproved",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow,
+                    __v = 0
+                };
+                _context.Notifications.Add(notification);
+            }
+
             await _context.SaveChangesAsync();
 
             TempData["SuccessMessage"] = $"Student '{student.FullName}' enrollment has been approved.";
