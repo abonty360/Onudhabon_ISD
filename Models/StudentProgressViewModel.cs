@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Onudhabon_ISD.Models
 {
@@ -147,9 +147,11 @@ namespace Onudhabon_ISD.Models
 
         public bool IsDeclined => Student.Status?.Trim().Equals("declined", StringComparison.OrdinalIgnoreCase) == true;
 
-        public bool CanUpdateProgress => !IsDeclined;
+        public bool IsPending => Student.Status?.Trim().Equals("pending", StringComparison.OrdinalIgnoreCase) == true;
 
-        public bool CanPromote => OverallProgressPercent >= 100.0 && !IsDeclined;
+        public bool CanUpdateProgress => !IsDeclined && !IsPending;
+
+        public bool CanPromote => OverallProgressPercent >= 100.0 && !IsDeclined && !IsPending;
 
         public string? NextClassLevel
         {

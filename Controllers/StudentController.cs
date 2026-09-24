@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -57,16 +57,13 @@ namespace Onudhabon_ISD.Controllers
             if (int.TryParse(userIdClaim, out int uid))
             {
                 var dbUser = await _context.Users.FindAsync(uid);
-                if (dbUser != null && !dbUser.IsRestricted &&
-                    (dbUser.IsVerified ||
-                     string.Equals(dbUser.VerificationStatus, "Active", StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(dbUser.VerificationStatus, "Approved", StringComparison.OrdinalIgnoreCase)))
+                if (dbUser != null && dbUser.IsRestricted)
                 {
-                    return true;
+                    return false;
                 }
             }
 
-            return false;
+            return true;
         }
 
         // GET: /Student or /Student/Index
@@ -89,7 +86,7 @@ namespace Onudhabon_ISD.Controllers
 
             if (!await IsCurrentGuardianApprovedAsync())
             {
-                TempData["ErrorMessage"] = "Your account is pending administrator approval. You can only visit pages until an administrator approves your account.";
+                TempData["ErrorMessage"] = "Your account has been restricted by an administrator. Please contact support.";
                 return RedirectToAction("Index", "Home");
             }
 
@@ -106,12 +103,12 @@ namespace Onudhabon_ISD.Controllers
 
         // GET: /Student/Enroll
         [HttpGet]
-        [Authorize(Roles = "Local Guardian")]
+        [Authorize(Roles = "Local Guardian,Admin")]
         public async Task<IActionResult> Enroll()
         {
             if (!await IsCurrentGuardianApprovedAsync())
             {
-                TempData["ErrorMessage"] = "Your account is pending administrator approval. You can only visit pages until an administrator approves your account.";
+                TempData["ErrorMessage"] = "Your account has been restricted by an administrator. Please contact support.";
                 return RedirectToAction("Index", "Home");
             }
 
@@ -201,13 +198,13 @@ namespace Onudhabon_ISD.Controllers
 
         // POST: /Student/Enroll
         [HttpPost]
-        [Authorize(Roles = "Local Guardian")]
+        [Authorize(Roles = "Local Guardian,Admin")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Enroll(StudentEnrollmentViewModel model)
         {
             if (!await IsCurrentGuardianApprovedAsync())
             {
-                TempData["ErrorMessage"] = "Your account is pending administrator approval. You can only visit pages until an administrator approves your account.";
+                TempData["ErrorMessage"] = "Your account has been restricted by an administrator. Please contact support.";
                 return RedirectToAction("Index", "Home");
             }
 
@@ -503,7 +500,7 @@ namespace Onudhabon_ISD.Controllers
 
             if (!await IsCurrentGuardianApprovedAsync())
             {
-                TempData["ErrorMessage"] = "Your account is pending administrator approval. You can only visit pages until an administrator approves your account.";
+                TempData["ErrorMessage"] = "Your account has been restricted by an administrator. Please contact support.";
                 return RedirectToAction("Index", "Home");
             }
 
@@ -637,6 +634,11 @@ namespace Onudhabon_ISD.Controllers
                 return Json(new { success = false, message = "Progress cannot be updated for declined student enrollments." });
             }
 
+            if (student.Status != null && student.Status.Trim().Equals("pending", StringComparison.OrdinalIgnoreCase))
+            {
+                return Json(new { success = false, message = "Progress cannot be updated for pending student enrollments until approved by an administrator." });
+            }
+
             var classPlans = await _context.ClassPlans.ToListAsync();
             var basePlanSubjects = GetSubjectProgressForStudent(student, classPlans);
 
@@ -728,6 +730,11 @@ namespace Onudhabon_ISD.Controllers
             if (student.Status != null && student.Status.Trim().Equals("declined", StringComparison.OrdinalIgnoreCase))
             {
                 return Json(new { success = false, message = "Exam evaluation cannot be updated for declined student enrollments." });
+            }
+
+            if (student.Status != null && student.Status.Trim().Equals("pending", StringComparison.OrdinalIgnoreCase))
+            {
+                return Json(new { success = false, message = "Exam evaluation cannot be updated for pending student enrollments until approved by an administrator." });
             }
 
             var classPlans = await _context.ClassPlans.ToListAsync();
@@ -826,6 +833,11 @@ namespace Onudhabon_ISD.Controllers
             if (student.Status != null && student.Status.Trim().Equals("declined", StringComparison.OrdinalIgnoreCase))
             {
                 return Json(new { success = false, message = "Lecture evaluation cannot be updated for declined student enrollments." });
+            }
+
+            if (student.Status != null && student.Status.Trim().Equals("pending", StringComparison.OrdinalIgnoreCase))
+            {
+                return Json(new { success = false, message = "Lecture evaluation cannot be updated for pending student enrollments until approved by an administrator." });
             }
 
             var classPlans = await _context.ClassPlans.ToListAsync();
@@ -965,6 +977,12 @@ namespace Onudhabon_ISD.Controllers
             if (student.Status != null && student.Status.Trim().Equals("declined", StringComparison.OrdinalIgnoreCase))
             {
                 TempData["ErrorMessage"] = "Cannot promote a student whose enrollment has been declined.";
+                return RedirectToAction(nameof(Progress));
+            }
+
+            if (student.Status != null && student.Status.Trim().Equals("pending", StringComparison.OrdinalIgnoreCase))
+            {
+                TempData["ErrorMessage"] = "Cannot promote a student whose enrollment is pending administrator verification.";
                 return RedirectToAction(nameof(Progress));
             }
 

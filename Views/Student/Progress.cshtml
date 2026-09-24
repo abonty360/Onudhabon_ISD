@@ -1,4 +1,4 @@
-﻿@model Onudhabon_ISD.Models.StudentProgressViewModel
+@model Onudhabon_ISD.Models.StudentProgressViewModel
 
 @{
     ViewData["Title"] = "Track Student Progress - Onudhabon";
@@ -202,7 +202,21 @@
                         <div class="card border-0 shadow-sm rounded-4 h-100 bg-white d-flex flex-column p-4 student-progress-card">
                             <!-- Card Header Info -->
                             <div class="mb-3">
-                                <h5 class="fw-bold text-dark mb-1">@student.FullName</h5>
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <h5 class="fw-bold text-dark mb-0">@student.FullName</h5>
+                                    @if (card.IsDeclined)
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill small">Declined</span>
+                                    }
+                                    else if (card.IsPending)
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill small"><i class="bi bi-clock-history me-1"></i>Pending</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill small"><i class="bi bi-check-circle me-1"></i>Active</span>
+                                    }
+                                </div>
                                 <div class="text-muted small mb-0.5">
                                     Birth Cert ID: @(string.IsNullOrWhiteSpace(student.BirthCertificateId) ? "N/A" : student.BirthCertificateId)
                                 </div>
@@ -335,13 +349,13 @@
                                                             <button type="button" 
                                                                     class="btn btn-xs rounded-pill px-2 py-0.5 d-inline-flex align-items-center gap-1 border-0 shadow-2xs" 
                                                                     style="@badgeBg font-size: 0.68rem; line-height: 1.1;" 
-                                                                    @(!card.IsDeclined ? $"onclick=\"openLectureEvalModal({student.Id}, '{student.FullName.Replace("'", "\\'")}', '{student.ClassLevel?.Replace("Class", "").Trim() ?? "1"}', '{sub.SubjectName.Replace("'", "\\'")}', {lec}, '{eval.Topic.Replace("'", "\\'")}', {(eval.Marks.HasValue ? eval.Marks.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "null")}, '{eval.Grade}', '{(eval.Remarks ?? "").Replace("'", "\\'")}', true, {sIdx})\"" : "disabled")
-                                                                    title="Lecture @lec Completed &amp; Evaluated: @eval.Topic | Grade: @eval.Grade | Marks: @(eval.Marks.HasValue ? eval.Marks.Value.ToString() : "N/A") (@(!card.IsDeclined ? "Click to view/edit" : "Declined"))">
+                                                                    @(card.CanUpdateProgress ? $"onclick=\"openLectureEvalModal({student.Id}, '{student.FullName.Replace("'", "\\'")}', '{student.ClassLevel?.Replace("Class", "").Trim() ?? "1"}', '{sub.SubjectName.Replace("'", "\\'")}', {lec}, '{eval.Topic.Replace("'", "\\'")}', {(eval.Marks.HasValue ? eval.Marks.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "null")}, '{eval.Grade}', '{(eval.Remarks ?? "").Replace("'", "\\'")}', true, {sIdx})\"" : "disabled")
+                                                                    title="Lecture @lec Completed &amp; Evaluated: @eval.Topic | Grade: @eval.Grade | Marks: @(eval.Marks.HasValue ? eval.Marks.Value.ToString() : "N/A") (@(card.IsDeclined ? "Declined" : (card.IsPending ? "Pending Approval" : "Click to view/edit")))">
                                                                 <span>L@(lec): @eval.Grade</span>
                                                                 <i class="bi bi-check2"></i>
                                                             </button>
                                                         }
-                                                        else if (lec == sub.CompletedLectures + 1 && !card.IsDeclined)
+                                                        else if (lec == sub.CompletedLectures + 1 && card.CanUpdateProgress)
                                                         {
                                                             <button type="button" 
                                                                     class="btn btn-xs rounded-pill px-2 py-0.5 btn-outline-primary fw-semibold d-inline-flex align-items-center gap-1" 
@@ -454,6 +468,35 @@
                                         <i class="bi bi-x-octagon me-1 text-danger"></i> Promotion Unavailable (Declined)
                                     </button>
                                 }
+                                else if (card.IsPending)
+                                {
+                                    <!-- Pending: Progress Cannot Be Updated -->
+                                    <button type="button" 
+                                            class="btn w-100 fw-medium py-2 rounded-2 shadow-sm text-warning-emphasis bg-warning-subtle border border-warning-subtle text-center" 
+                                            style="font-size: 0.82rem; cursor: not-allowed;" 
+                                            disabled
+                                            title="Student enrollment is pending administrator approval. Progress cannot be updated yet.">
+                                        <i class="bi bi-clock-history me-1 text-warning"></i> Enrollment Pending (Cannot Update Progress)
+                                    </button>
+
+                                    <!-- Pending: Exam Evaluation Cannot Be Updated -->
+                                    <button type="button" 
+                                            class="btn w-100 fw-medium py-2 rounded-2 border text-muted bg-light text-center" 
+                                            style="font-size: 0.82rem; cursor: not-allowed;" 
+                                            disabled
+                                            title="Student enrollment is pending administrator approval. Exam evaluation cannot be updated yet.">
+                                        <i class="bi bi-clock-history me-1 text-secondary"></i> Exam Evaluation Unavailable (Pending Approval)
+                                    </button>
+
+                                    <!-- Pending: Promotion Not Available -->
+                                    <button type="button" 
+                                            class="btn btn-light w-100 fw-medium py-2 rounded-2 border text-muted text-center" 
+                                            style="font-size: 0.82rem; cursor: not-allowed;" 
+                                            disabled
+                                            title="Student enrollment is pending administrator approval. Promotion is not available yet.">
+                                        <i class="bi bi-lock me-1 text-secondary"></i> Promotion Unavailable (Pending Approval)
+                                    </button>
+                                }
                                 else
                                 {
                                     <div class="row g-2">
@@ -528,7 +571,7 @@
                         </div>
                     </div>
 
-                    @if (!card.IsDeclined)
+                    @if (card.CanUpdateProgress)
                     {
                         <!-- Modal for Updating Progress for this Student -->
                         <div class="modal fade" id="updateProgressModal-@student.Id" tabindex="-1" aria-labelledby="modalLabel-@student.Id" aria-hidden="true">

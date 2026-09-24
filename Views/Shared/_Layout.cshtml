@@ -123,7 +123,7 @@
                                 </li>
                             }
 
-                            @if (userRole == "Local Guardian" || User.IsInRole("Local Guardian"))
+                            @if (userRole == "Local Guardian" || User.IsInRole("Local Guardian") || userRole == "Admin" || User.IsInRole("Admin"))
                             {
                                 <li class="nav-item me-2">
                                     <a class="btn btn-nav-action btn-sm rounded-pill px-3 py-1.5" asp-controller="Student" asp-action="Progress">
@@ -207,7 +207,7 @@
                                             </a>
                                         </li>
                                     }
-                                    @if (userRole == "Local Guardian" || User.IsInRole("Local Guardian"))
+                                    @if (userRole == "Local Guardian" || User.IsInRole("Local Guardian") || userRole == "Admin" || User.IsInRole("Admin"))
                                     {
                                         <li>
                                             <a class="dropdown-item rounded-3 py-2 fw-semibold text-primary" asp-controller="Student" asp-action="Progress">
@@ -259,6 +259,36 @@
     </header>
     
     <main role="main" class="flex-grow-1">
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="container mt-3">
+                <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center gap-2 mb-3" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0"></i>
+                    <div>@TempData["ErrorMessage"]</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            </div>
+        }
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="container mt-3">
+                <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center gap-2 mb-3" role="alert">
+                    <i class="bi bi-check-circle-fill fs-5 flex-shrink-0"></i>
+                    <div>@TempData["SuccessMessage"]</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            </div>
+        }
+        @if (TempData["WarningMessage"] != null)
+        {
+            <div class="container mt-3">
+                <div class="alert alert-warning alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center gap-2 mb-3" role="alert">
+                    <i class="bi bi-exclamation-circle-fill fs-5 flex-shrink-0"></i>
+                    <div>@TempData["WarningMessage"]</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            </div>
+        }
         @RenderBody()
     </main>
 
