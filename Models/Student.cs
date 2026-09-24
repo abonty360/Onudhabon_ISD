@@ -85,6 +85,10 @@ namespace Onudhabon_ISD.Models
         [Display(Name = "Subject Progress (JSON)")]
         public string? SubjectProgressJson { get; set; }
 
+        [MaxLength(4000)]
+        [Display(Name = "Monthly Assessments (JSON)")]
+        public string? MonthlyAssessmentsJson { get; set; }
+
         [NotMapped]
         public List<StudentSubjectProgress> SubjectProgressList
         {
@@ -135,8 +139,21 @@ namespace Onudhabon_ISD.Models
 
     public class StudentSubjectProgress
     {
+        private string _subjectName = string.Empty;
+
         [System.Text.Json.Serialization.JsonPropertyName("name")]
-        public string SubjectName { get; set; } = string.Empty;
+        public string SubjectName
+        {
+            get => _subjectName;
+            set => _subjectName = value ?? string.Empty;
+        }
+
+        [System.Text.Json.Serialization.JsonPropertyName("subjectName")]
+        public string? SubjectNameAlias
+        {
+            get => _subjectName;
+            set { if (!string.IsNullOrWhiteSpace(value)) _subjectName = value; }
+        }
 
         [System.Text.Json.Serialization.JsonPropertyName("totalLectures")]
         public int TotalLectures { get; set; } = 12;
@@ -144,9 +161,42 @@ namespace Onudhabon_ISD.Models
         [System.Text.Json.Serialization.JsonPropertyName("completedLectures")]
         public int CompletedLectures { get; set; } = 0;
 
+        [System.Text.Json.Serialization.JsonPropertyName("syllabus")]
+        public string? Syllabus { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("marks")]
+        public double? Marks { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("grade")]
+        public string? Grade { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("lectures")]
+        public List<LectureEvaluationItem> LectureEvaluations { get; set; } = new();
+
         [System.Text.Json.Serialization.JsonIgnore]
         public int ProgressPercentage => TotalLectures > 0
             ? (int)Math.Clamp(Math.Round((double)CompletedLectures / TotalLectures * 100), 0, 100)
             : 0;
+    }
+
+    public class LectureEvaluationItem
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("no")]
+        public int LectureNumber { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("top")]
+        public string Topic { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("m")]
+        public double? Marks { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("g")]
+        public string Grade { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("d")]
+        public string? Date { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("rem")]
+        public string? Remarks { get; set; }
     }
 }

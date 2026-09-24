@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -49,6 +49,26 @@ namespace Onudhabon_ISD.Controllers
             return identifiers.Distinct().ToList();
         }
 
+        private async Task<bool> IsCurrentGuardianApprovedAsync()
+        {
+            if (User.IsInRole("Admin")) return true;
+
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (int.TryParse(userIdClaim, out int uid))
+            {
+                var dbUser = await _context.Users.FindAsync(uid);
+                if (dbUser != null && !dbUser.IsRestricted &&
+                    (dbUser.IsVerified ||
+                     string.Equals(dbUser.VerificationStatus, "Active", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(dbUser.VerificationStatus, "Approved", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         // GET: /Student or /Student/Index
         [HttpGet]
         public async Task<IActionResult> Index()
@@ -67,6 +87,12 @@ namespace Onudhabon_ISD.Controllers
                 return RedirectToAction("Index", "Home");
             }
 
+            if (!await IsCurrentGuardianApprovedAsync())
+            {
+                TempData["ErrorMessage"] = "Your account is pending administrator approval. You can only visit pages until an administrator approves your account.";
+                return RedirectToAction("Index", "Home");
+            }
+
             var identifiers = await GetCurrentUserIdentifiersAsync();
 
             var students = await _context.Students
@@ -81,8 +107,14 @@ namespace Onudhabon_ISD.Controllers
         // GET: /Student/Enroll
         [HttpGet]
         [Authorize(Roles = "Local Guardian")]
-        public IActionResult Enroll()
+        public async Task<IActionResult> Enroll()
         {
+            if (!await IsCurrentGuardianApprovedAsync())
+            {
+                TempData["ErrorMessage"] = "Your account is pending administrator approval. You can only visit pages until an administrator approves your account.";
+                return RedirectToAction("Index", "Home");
+            }
+
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var userName = User.Identity?.Name ?? "Local Guardian";
 
@@ -102,8 +134,15 @@ namespace Onudhabon_ISD.Controllers
                 return new List<string>();
 
             var cleanLevel = classLevel.Replace("Class", "", StringComparison.OrdinalIgnoreCase).Trim();
+            int classNum = 1;
+            var match = System.Text.RegularExpressions.Regex.Match(classLevel, @"\d+");
+            if (match.Success && int.TryParse(match.Value, out int parsedNum))
+            {
+                classNum = parsedNum;
+            }
+
             var plan = await _context.ClassPlans
-                .FirstOrDefaultAsync(p => p.ClassLevel == cleanLevel || p.ClassLevel == classLevel);
+                .FirstOrDefaultAsync(p => p.ClassLevel == cleanLevel || p.ClassLevel == classLevel || p.ClassLevel == classNum.ToString() || p.ClassLevel == $"Class {classNum}");
 
             if (plan?.Subjects != null && plan.Subjects.Any())
             {
@@ -117,19 +156,16 @@ namespace Onudhabon_ISD.Controllers
             }
 
             // Standard Bangladesh NCTB curriculum fallback by class level
-            if (int.TryParse(cleanLevel, out int lvl))
-            {
-                if (lvl >= 1 && lvl <= 3)
-                    return new List<string> { "Bangla", "English", "Math" };
-                if (lvl >= 4 && lvl <= 8)
-                    return new List<string> { "Bangla 1st paper", "Bangla 2nd paper", "English 1st paper", "English 2nd paper", "Math", "Social Science", "General Science" };
-                if (lvl >= 9 && lvl <= 10)
-                    return new List<string> { "Bangla 1st paper", "Bangla 2nd paper", "English 1st paper", "English 2nd paper", "Math", "Social Science", "General Science", "Physics", "Chemistry", "Higher Math", "Biology" };
-                if (lvl >= 11 && lvl <= 12)
-                    return new List<string> { "Bangla 1st paper", "Bangla 2nd paper", "English 1st paper", "English 2nd paper", "Physics 1st paper", "Physics 2nd paper", "Chemistry 1st paper", "Chemistry 2nd paper", "Higher Math 1st paper", "Higher Math 2nd paper", "Biology 1st paper", "Biology 2nd paper" };
-            }
+            if (classNum >= 1 && classNum <= 3)
+                return new List<string> { "Bangla", "English", "Math" };
+            if (classNum >= 4 && classNum <= 8)
+                return new List<string> { "Bangla 1st paper", "Bangla 2nd paper", "English 1st paper", "English 2nd paper", "Math", "Social Science", "General Science" };
+            if (classNum >= 9 && classNum <= 10)
+                return new List<string> { "Bangla 1st paper", "Bangla 2nd paper", "English 1st paper", "English 2nd paper", "Math", "Social Science", "General Science", "Physics", "Chemistry", "Higher Math", "Biology" };
+            if (classNum >= 11 && classNum <= 12)
+                return new List<string> { "Bangla 1st paper", "Bangla 2nd paper", "English 1st paper", "English 2nd paper", "Physics 1st paper", "Physics 2nd paper", "Chemistry 1st paper", "Chemistry 2nd paper", "Higher Math 1st paper", "Higher Math 2nd paper", "Biology 1st paper", "Biology 2nd paper" };
 
-            return new List<string>();
+            return new List<string> { "Bangla", "English", "Math" };
         }
 
         // GET: /Student/GetClassPlanSubjects?classLevel=5
@@ -169,6 +205,12 @@ namespace Onudhabon_ISD.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Enroll(StudentEnrollmentViewModel model)
         {
+            if (!await IsCurrentGuardianApprovedAsync())
+            {
+                TempData["ErrorMessage"] = "Your account is pending administrator approval. You can only visit pages until an administrator approves your account.";
+                return RedirectToAction("Index", "Home");
+            }
+
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -263,79 +305,101 @@ namespace Onudhabon_ISD.Controllers
 
         private List<SubjectProgressItem> GetSubjectProgressForStudent(Student student, List<ClassPlan> classPlans)
         {
-            var cleanLevel = (student.ClassLevel ?? "1").Replace("Class", "", StringComparison.OrdinalIgnoreCase).Trim();
+            var rawLevel = student.ClassLevel?.Trim() ?? "1";
+            var cleanLevel = rawLevel.Replace("Class", "", StringComparison.OrdinalIgnoreCase).Trim();
+            
+            int classNum = 1;
+            var numMatch = System.Text.RegularExpressions.Regex.Match(rawLevel, @"\d+");
+            if (numMatch.Success && int.TryParse(numMatch.Value, out int parsedNum))
+            {
+                classNum = parsedNum;
+            }
+
             var plan = classPlans.FirstOrDefault(p => 
                 p.ClassLevel.Trim().Equals(cleanLevel, StringComparison.OrdinalIgnoreCase) || 
-                p.ClassLevel.Trim().Equals(student.ClassLevel?.Trim(), StringComparison.OrdinalIgnoreCase) ||
-                p.ClassLevel.Trim().Equals($"Class {cleanLevel}", StringComparison.OrdinalIgnoreCase));
+                p.ClassLevel.Trim().Equals(rawLevel, StringComparison.OrdinalIgnoreCase) ||
+                p.ClassLevel.Trim().Equals(classNum.ToString(), StringComparison.OrdinalIgnoreCase) ||
+                p.ClassLevel.Trim().Equals($"Class {classNum}", StringComparison.OrdinalIgnoreCase));
 
             var classSubjects = new List<SubjectDetail>();
             if (plan?.Subjects != null && plan.Subjects.Any())
             {
                 classSubjects = plan.Subjects.Where(s => !string.IsNullOrWhiteSpace(s.Name)).ToList();
             }
-            else
+
+            // If no subjects found from ClassPlan, extract from student.Subjects column if available
+            if (!classSubjects.Any() && !string.IsNullOrWhiteSpace(student.Subjects))
             {
-                // Fallback default subjects and lectures by class level
-                if (int.TryParse(cleanLevel, out int lvl))
+                var names = student.Subjects.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                int defaultTotal = classNum >= 11 ? 20 : (classNum <= 3 ? 10 : 12);
+                foreach (var name in names)
                 {
-                    if (lvl >= 1 && lvl <= 3)
+                    if (!string.IsNullOrWhiteSpace(name))
                     {
-                        classSubjects = new List<SubjectDetail>
-                        {
-                            new() { Name = "Bangla", TotalLectures = 10 },
-                            new() { Name = "English", TotalLectures = 10 },
-                            new() { Name = "Math", TotalLectures = 10 }
-                        };
+                        classSubjects.Add(new SubjectDetail { Name = name.Trim(), TotalLectures = defaultTotal });
                     }
-                    else if (lvl >= 4 && lvl <= 8)
+                }
+            }
+
+            // Fallback default subjects and lectures by Bangladesh NCTB curriculum class level
+            if (!classSubjects.Any())
+            {
+                if (classNum >= 1 && classNum <= 3)
+                {
+                    classSubjects = new List<SubjectDetail>
                     {
-                        classSubjects = new List<SubjectDetail>
-                        {
-                            new() { Name = "Bangla 1st paper", TotalLectures = 12 },
-                            new() { Name = "Bangla 2nd paper", TotalLectures = 12 },
-                            new() { Name = "English 1st paper", TotalLectures = 12 },
-                            new() { Name = "English 2nd paper", TotalLectures = 12 },
-                            new() { Name = "Math", TotalLectures = 12 },
-                            new() { Name = "Social Science", TotalLectures = 12 },
-                            new() { Name = "General Science", TotalLectures = 12 }
-                        };
-                    }
-                    else if (lvl >= 9 && lvl <= 10)
+                        new() { Name = "Bangla", TotalLectures = 10 },
+                        new() { Name = "English", TotalLectures = 10 },
+                        new() { Name = "Math", TotalLectures = 10 }
+                    };
+                }
+                else if (classNum >= 4 && classNum <= 8)
+                {
+                    classSubjects = new List<SubjectDetail>
                     {
-                        classSubjects = new List<SubjectDetail>
-                        {
-                            new() { Name = "Bangla 1st paper", TotalLectures = 12 },
-                            new() { Name = "Bangla 2nd paper", TotalLectures = 12 },
-                            new() { Name = "English 1st paper", TotalLectures = 12 },
-                            new() { Name = "English 2nd paper", TotalLectures = 12 },
-                            new() { Name = "Math", TotalLectures = 12 },
-                            new() { Name = "Social Science", TotalLectures = 12 },
-                            new() { Name = "General Science", TotalLectures = 12 },
-                            new() { Name = "Physics", TotalLectures = 12 },
-                            new() { Name = "Chemistry", TotalLectures = 12 },
-                            new() { Name = "Higher Math", TotalLectures = 12 },
-                            new() { Name = "Biology", TotalLectures = 12 }
-                        };
-                    }
-                    else
+                        new() { Name = "Bangla 1st paper", TotalLectures = 12 },
+                        new() { Name = "Bangla 2nd paper", TotalLectures = 12 },
+                        new() { Name = "English 1st paper", TotalLectures = 12 },
+                        new() { Name = "English 2nd paper", TotalLectures = 12 },
+                        new() { Name = "Math", TotalLectures = 12 },
+                        new() { Name = "Social Science", TotalLectures = 12 },
+                        new() { Name = "General Science", TotalLectures = 12 }
+                    };
+                }
+                else if (classNum >= 9 && classNum <= 10)
+                {
+                    classSubjects = new List<SubjectDetail>
                     {
-                        classSubjects = new List<SubjectDetail>
-                        {
-                            new() { Name = "Bangla 1st paper", TotalLectures = 20 },
-                            new() { Name = "Bangla 2nd paper", TotalLectures = 20 },
-                            new() { Name = "English 1st paper", TotalLectures = 20 },
-                            new() { Name = "English 2nd paper", TotalLectures = 20 },
-                            new() { Name = "Physics 1st paper", TotalLectures = 20 },
-                            new() { Name = "Physics 2nd paper", TotalLectures = 20 },
-                            new() { Name = "Chemistry 1st paper", TotalLectures = 20 },
-                            new() { Name = "Chemistry 2nd paper", TotalLectures = 20 },
-                            new() { Name = "Higher Math 1st paper", TotalLectures = 20 },
-                            new() { Name = "Higher Math 2nd paper", TotalLectures = 20 },
-                            new() { Name = "Biology 1st paper", TotalLectures = 20 },
-                            new() { Name = "Biology 2nd paper", TotalLectures = 20 }
-                        };
-                    }
+                        new() { Name = "Bangla 1st paper", TotalLectures = 12 },
+                        new() { Name = "Bangla 2nd paper", TotalLectures = 12 },
+                        new() { Name = "English 1st paper", TotalLectures = 12 },
+                        new() { Name = "English 2nd paper", TotalLectures = 12 },
+                        new() { Name = "Math", TotalLectures = 12 },
+                        new() { Name = "Social Science", TotalLectures = 12 },
+                        new() { Name = "General Science", TotalLectures = 12 },
+                        new() { Name = "Physics", TotalLectures = 12 },
+                        new() { Name = "Chemistry", TotalLectures = 12 },
+                        new() { Name = "Higher Math", TotalLectures = 12 },
+                        new() { Name = "Biology", TotalLectures = 12 }
+                    };
+                }
+                else
+                {
+                    classSubjects = new List<SubjectDetail>
+                    {
+                        new() { Name = "Bangla 1st paper", TotalLectures = 20 },
+                        new() { Name = "Bangla 2nd paper", TotalLectures = 20 },
+                        new() { Name = "English 1st paper", TotalLectures = 20 },
+                        new() { Name = "English 2nd paper", TotalLectures = 20 },
+                        new() { Name = "Physics 1st paper", TotalLectures = 20 },
+                        new() { Name = "Physics 2nd paper", TotalLectures = 20 },
+                        new() { Name = "Chemistry 1st paper", TotalLectures = 20 },
+                        new() { Name = "Chemistry 2nd paper", TotalLectures = 20 },
+                        new() { Name = "Higher Math 1st paper", TotalLectures = 20 },
+                        new() { Name = "Higher Math 2nd paper", TotalLectures = 20 },
+                        new() { Name = "Biology 1st paper", TotalLectures = 20 },
+                        new() { Name = "Biology 2nd paper", TotalLectures = 20 }
+                    };
                 }
             }
 
@@ -358,11 +422,22 @@ namespace Onudhabon_ISD.Controllers
                 if (existing != null)
                 {
                     int totalL = sub.TotalLectures > 0 ? sub.TotalLectures : (existing.TotalLectures > 0 ? existing.TotalLectures : 12);
+                    var evals = existing.LectureEvaluations ?? new List<LectureEvaluationItem>();
+                    int completed = evals.Any() ? Math.Clamp(evals.Count, 0, totalL) : Math.Clamp(existing.CompletedLectures, 0, totalL);
+
+                    string syllabusText = !string.IsNullOrWhiteSpace(existing.Syllabus)
+                        ? existing.Syllabus
+                        : (completed > 0 ? (completed == 1 ? "Lecture 1" : $"Lectures 1 to {completed}") : "No lectures completed");
+
                     result.Add(new SubjectProgressItem
                     {
                         SubjectName = sub.Name,
                         TotalLectures = totalL,
-                        CompletedLectures = Math.Clamp(existing.CompletedLectures, 0, totalL)
+                        CompletedLectures = completed,
+                        Syllabus = syllabusText,
+                        Marks = existing.Marks,
+                        Grade = existing.Grade,
+                        LectureEvaluations = evals
                     });
                 }
                 else
@@ -371,8 +446,42 @@ namespace Onudhabon_ISD.Controllers
                     {
                         SubjectName = sub.Name,
                         TotalLectures = sub.TotalLectures > 0 ? sub.TotalLectures : 12,
-                        CompletedLectures = 0
+                        CompletedLectures = 0,
+                        Syllabus = "No lectures completed",
+                        Marks = null,
+                        Grade = null,
+                        LectureEvaluations = new List<LectureEvaluationItem>()
                     });
+                }
+            }
+
+            // Include any saved items from student.SubjectProgressJson that were not in classSubjects
+            if (savedItems != null)
+            {
+                foreach (var saved in savedItems)
+                {
+                    if (!string.IsNullOrWhiteSpace(saved.SubjectName) &&
+                        !result.Any(r => r.SubjectName.Equals(saved.SubjectName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var evals = saved.LectureEvaluations ?? new List<LectureEvaluationItem>();
+                        int totalL = saved.TotalLectures > 0 ? saved.TotalLectures : 12;
+                        int completed = evals.Any() ? Math.Clamp(evals.Count, 0, totalL) : Math.Clamp(saved.CompletedLectures, 0, totalL);
+
+                        string syllabusText = !string.IsNullOrWhiteSpace(saved.Syllabus)
+                            ? saved.Syllabus
+                            : (completed > 0 ? (completed == 1 ? "Lecture 1" : $"Lectures 1 to {completed}") : "No lectures completed");
+
+                        result.Add(new SubjectProgressItem
+                        {
+                            SubjectName = saved.SubjectName,
+                            TotalLectures = totalL,
+                            CompletedLectures = completed,
+                            Syllabus = syllabusText,
+                            Marks = saved.Marks,
+                            Grade = saved.Grade,
+                            LectureEvaluations = evals
+                        });
+                    }
                 }
             }
 
@@ -389,6 +498,12 @@ namespace Onudhabon_ISD.Controllers
             if (!isAdmin && !isLocalGuardian)
             {
                 TempData["ErrorMessage"] = "Student progress tracking is available to registered Local Guardians and Administrators.";
+                return RedirectToAction("Index", "Home");
+            }
+
+            if (!await IsCurrentGuardianApprovedAsync())
+            {
+                TempData["ErrorMessage"] = "Your account is pending administrator approval. You can only visit pages until an administrator approves your account.";
                 return RedirectToAction("Index", "Home");
             }
 
@@ -517,6 +632,11 @@ namespace Onudhabon_ISD.Controllers
                 return Json(new { success = false, message = "Unauthorized to update this student's progress." });
             }
 
+            if (student.Status != null && student.Status.Trim().Equals("declined", StringComparison.OrdinalIgnoreCase))
+            {
+                return Json(new { success = false, message = "Progress cannot be updated for declined student enrollments." });
+            }
+
             var classPlans = await _context.ClassPlans.ToListAsync();
             var basePlanSubjects = GetSubjectProgressForStudent(student, classPlans);
 
@@ -528,11 +648,19 @@ namespace Onudhabon_ISD.Controllers
                     ? Math.Clamp(matchingInput.CompletedLectures, 0, baseSub.TotalLectures)
                     : baseSub.CompletedLectures;
 
+                string syllabusText = completed > 0 
+                    ? (completed == 1 ? "Lecture 1" : $"Lectures 1 to {completed}")
+                    : "No lectures completed";
+
                 updatedList.Add(new SubjectProgressItem
                 {
                     SubjectName = baseSub.SubjectName,
                     TotalLectures = baseSub.TotalLectures,
-                    CompletedLectures = completed
+                    CompletedLectures = completed,
+                    Syllabus = syllabusText,
+                    Marks = baseSub.Marks,
+                    Grade = baseSub.Grade,
+                    LectureEvaluations = baseSub.LectureEvaluations ?? new List<LectureEvaluationItem>()
                 });
             }
 
@@ -556,7 +684,262 @@ namespace Onudhabon_ISD.Controllers
                 overallProgress = overallProgressDouble,
                 completedLectures = completedLects,
                 totalLectures = totalLects,
-                canPromote = overallProgressDouble >= 100.0
+                canPromote = overallProgressDouble >= 100.0,
+                subjects = updatedList.Select(s => new
+                {
+                    subjectName = s.SubjectName,
+                    completedLectures = s.CompletedLectures,
+                    totalLectures = s.TotalLectures,
+                    syllabus = s.Syllabus ?? "",
+                    marks = s.Marks,
+                    grade = s.Grade ?? "",
+                    displayGrade = s.DisplayGrade,
+                    gradeBadgeClass = s.GradeBadgeClass
+                }).ToList()
+            });
+        }
+
+        // POST: /Student/UpdateExamEvaluation
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateExamEvaluation([FromBody] UpdateExamEvaluationInput input)
+        {
+            if (input == null || input.StudentId <= 0)
+            {
+                return Json(new { success = false, message = "Invalid exam evaluation data." });
+            }
+
+            var student = await _context.Students.FindAsync(input.StudentId);
+            if (student == null)
+            {
+                return Json(new { success = false, message = "Student not found." });
+            }
+
+            var isAdmin = User.IsInRole("Admin");
+            var identifiers = await GetCurrentUserIdentifiersAsync();
+            bool isOwner = (!string.IsNullOrEmpty(student.GuardianId) && identifiers.Contains(student.GuardianId.ToLower())) ||
+                           (!string.IsNullOrEmpty(student.GuardianName) && identifiers.Contains(student.GuardianName.ToLower()));
+
+            if (!isAdmin && !isOwner)
+            {
+                return Json(new { success = false, message = "Unauthorized to update this student's exam evaluation." });
+            }
+
+            if (student.Status != null && student.Status.Trim().Equals("declined", StringComparison.OrdinalIgnoreCase))
+            {
+                return Json(new { success = false, message = "Exam evaluation cannot be updated for declined student enrollments." });
+            }
+
+            var classPlans = await _context.ClassPlans.ToListAsync();
+            var basePlanSubjects = GetSubjectProgressForStudent(student, classPlans);
+
+            var updatedList = new List<SubjectProgressItem>();
+            foreach (var baseSub in basePlanSubjects)
+            {
+                var matchingInput = input.Evaluations?.FirstOrDefault(e => e.SubjectName.Equals(baseSub.SubjectName, StringComparison.OrdinalIgnoreCase));
+                
+                string? syllabus = matchingInput != null ? matchingInput.Syllabus?.Trim() : baseSub.Syllabus;
+                double? marks = matchingInput != null ? matchingInput.Marks : baseSub.Marks;
+                string? grade = matchingInput != null ? matchingInput.Grade?.Trim().ToUpperInvariant() : baseSub.Grade;
+
+                if (string.IsNullOrWhiteSpace(grade) || grade == "PENDING" || grade == "NONE")
+                {
+                    grade = null;
+                }
+
+                updatedList.Add(new SubjectProgressItem
+                {
+                    SubjectName = baseSub.SubjectName,
+                    TotalLectures = baseSub.TotalLectures,
+                    CompletedLectures = baseSub.CompletedLectures,
+                    Syllabus = string.IsNullOrWhiteSpace(syllabus) ? null : syllabus,
+                    Marks = marks,
+                    Grade = grade,
+                    LectureEvaluations = baseSub.LectureEvaluations ?? new List<LectureEvaluationItem>()
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(input.Remarks))
+            {
+                student.Notes = input.Remarks;
+            }
+
+            student.SubjectProgressJson = System.Text.Json.JsonSerializer.Serialize(updatedList);
+            student.LastActivityDate = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            var card = new StudentProgressCardViewModel
+            {
+                Student = student,
+                SubjectProgress = updatedList
+            };
+
+            return Json(new
+            {
+                success = true,
+                message = $"Exam evaluation for '{student.FullName}' updated successfully.",
+                overallGrade = card.OverallGrade,
+                overallGPA = card.OverallGPA,
+                gradeBadgeClass = card.OverallGradeBadgeClass,
+                evaluatedCount = card.EvaluatedSubjectsCount,
+                hasExamEvaluation = card.HasExamEvaluation,
+                canPromote = card.CanPromote,
+                subjects = updatedList.Select(s => new
+                {
+                    subjectName = s.SubjectName,
+                    syllabus = s.Syllabus ?? "",
+                    marks = s.Marks,
+                    grade = s.Grade ?? "",
+                    displayGrade = s.DisplayGrade,
+                    gradeBadgeClass = s.GradeBadgeClass
+                }).ToList()
+            });
+        }
+
+        // POST: /Student/EvaluateLecture
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EvaluateLecture([FromBody] EvaluateLectureInput input)
+        {
+            if (input == null || input.StudentId <= 0 || string.IsNullOrWhiteSpace(input.SubjectName))
+            {
+                return Json(new { success = false, message = "Invalid lecture evaluation parameters." });
+            }
+
+            var student = await _context.Students.FindAsync(input.StudentId);
+            if (student == null)
+            {
+                return Json(new { success = false, message = "Student not found." });
+            }
+
+            var isAdmin = User.IsInRole("Admin");
+            var identifiers = await GetCurrentUserIdentifiersAsync();
+            bool isOwner = (!string.IsNullOrEmpty(student.GuardianId) && identifiers.Contains(student.GuardianId.ToLower())) ||
+                           (!string.IsNullOrEmpty(student.GuardianName) && identifiers.Contains(student.GuardianName.ToLower()));
+
+            if (!isAdmin && !isOwner)
+            {
+                return Json(new { success = false, message = "Unauthorized to evaluate this student." });
+            }
+
+            if (student.Status != null && student.Status.Trim().Equals("declined", StringComparison.OrdinalIgnoreCase))
+            {
+                return Json(new { success = false, message = "Lecture evaluation cannot be updated for declined student enrollments." });
+            }
+
+            var classPlans = await _context.ClassPlans.ToListAsync();
+            var basePlanSubjects = GetSubjectProgressForStudent(student, classPlans);
+
+            var targetSubject = basePlanSubjects.FirstOrDefault(s => s.SubjectName.Equals(input.SubjectName, StringComparison.OrdinalIgnoreCase));
+            if (targetSubject == null)
+            {
+                return Json(new { success = false, message = $"Subject '{input.SubjectName}' not found for student." });
+            }
+
+            if (targetSubject.LectureEvaluations == null)
+            {
+                targetSubject.LectureEvaluations = new List<LectureEvaluationItem>();
+            }
+
+            int lecNo = input.LectureNumber > 0 ? input.LectureNumber : (targetSubject.CompletedLectures + 1);
+            if (lecNo > targetSubject.TotalLectures)
+            {
+                return Json(new { success = false, message = $"Lecture {lecNo} exceeds total planned lectures ({targetSubject.TotalLectures})." });
+            }
+
+            if (input.IsDelete)
+            {
+                targetSubject.LectureEvaluations.RemoveAll(l => l.LectureNumber == lecNo);
+            }
+            else
+            {
+                var existingLec = targetSubject.LectureEvaluations.FirstOrDefault(l => l.LectureNumber == lecNo);
+                if (existingLec != null)
+                {
+                    existingLec.Topic = (input.Topic ?? "").Trim();
+                    existingLec.Marks = input.Marks;
+                    existingLec.Grade = (input.Grade ?? "A+").Trim().ToUpperInvariant();
+                    existingLec.Remarks = input.Remarks?.Trim();
+                    existingLec.Date = DateTime.UtcNow.ToString("yyyy-MM-dd");
+                }
+                else
+                {
+                    targetSubject.LectureEvaluations.Add(new LectureEvaluationItem
+                    {
+                        LectureNumber = lecNo,
+                        Topic = (input.Topic ?? "").Trim(),
+                        Marks = input.Marks,
+                        Grade = (input.Grade ?? "A+").Trim().ToUpperInvariant(),
+                        Remarks = input.Remarks?.Trim(),
+                        Date = DateTime.UtcNow.ToString("yyyy-MM-dd")
+                    });
+                }
+            }
+
+            targetSubject.LectureEvaluations = targetSubject.LectureEvaluations
+                .OrderBy(l => l.LectureNumber)
+                .ToList();
+
+            targetSubject.CompletedLectures = targetSubject.LectureEvaluations.Count;
+            targetSubject.Grade = targetSubject.CalculatedGrade;
+            if (targetSubject.LectureEvaluations.Any())
+            {
+                int count = targetSubject.LectureEvaluations.Count;
+                targetSubject.Syllabus = count == 1 ? "Lecture 1" : $"Lectures 1 to {count}";
+            }
+            else
+            {
+                targetSubject.Syllabus = "No lectures completed";
+            }
+
+            int totalLects = basePlanSubjects.Sum(s => s.TotalLectures);
+            int completedLects = basePlanSubjects.Sum(s => s.CompletedLectures);
+            int overallProgressInt = totalLects > 0 ? (int)Math.Round((double)completedLects / totalLects * 100.0) : 0;
+            double overallProgressDouble = totalLects > 0 ? Math.Round((double)completedLects / totalLects * 100.0, 1) : 0.0;
+
+            student.ProgressPercentage = overallProgressInt;
+            student.SubjectProgressJson = System.Text.Json.JsonSerializer.Serialize(basePlanSubjects);
+            student.LastActivityDate = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            var card = new StudentProgressCardViewModel
+            {
+                Student = student,
+                SubjectProgress = basePlanSubjects
+            };
+
+            return Json(new
+            {
+                success = true,
+                message = input.IsDelete
+                    ? $"Lecture {lecNo} evaluation removed for {targetSubject.SubjectName}."
+                    : $"Lecture {lecNo} evaluated successfully for {targetSubject.SubjectName}.",
+                studentId = student.Id,
+                subjectName = targetSubject.SubjectName,
+                completedLectures = targetSubject.CompletedLectures,
+                totalLectures = targetSubject.TotalLectures,
+                subjectProgress = targetSubject.ProgressPercentage,
+                subjectGrade = targetSubject.CalculatedGrade,
+                subjectGradeBadgeClass = targetSubject.GradeBadgeClass,
+                subjectSyllabus = targetSubject.Syllabus ?? "",
+                overallProgress = overallProgressDouble,
+                overallGrade = card.OverallGrade,
+                overallGPA = card.OverallGPA,
+                gradeBadgeClass = card.OverallGradeBadgeClass,
+                totalCompletedLectures = completedLects,
+                totalLecturesAll = totalLects,
+                canPromote = overallProgressDouble >= 100.0,
+                evaluatedLectures = targetSubject.LectureEvaluations.Select(l => new
+                {
+                    lectureNumber = l.LectureNumber,
+                    topic = l.Topic,
+                    marks = l.Marks,
+                    grade = l.Grade,
+                    date = l.Date,
+                    remarks = l.Remarks ?? ""
+                }).ToList()
             });
         }
 
@@ -576,6 +959,12 @@ namespace Onudhabon_ISD.Controllers
             if (!isAdmin && !isOwner)
             {
                 TempData["ErrorMessage"] = "Unauthorized to promote this student.";
+                return RedirectToAction(nameof(Progress));
+            }
+
+            if (student.Status != null && student.Status.Trim().Equals("declined", StringComparison.OrdinalIgnoreCase))
+            {
+                TempData["ErrorMessage"] = "Cannot promote a student whose enrollment has been declined.";
                 return RedirectToAction(nameof(Progress));
             }
 

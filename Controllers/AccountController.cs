@@ -66,7 +66,7 @@ namespace Onudhabon_ISD.Controllers
             }
 
             var input = model.UsernameOrEmail?.Trim() ?? string.Empty;
-            
+
             // Find user by Email (case-insensitive)
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == input.ToLower());
 
@@ -125,8 +125,8 @@ namespace Onudhabon_ISD.Controllers
             var authProperties = new AuthenticationProperties
             {
                 IsPersistent = model.RememberMe,
-                ExpiresUtc = model.RememberMe 
-                    ? DateTimeOffset.UtcNow.AddDays(30) 
+                ExpiresUtc = model.RememberMe
+                    ? DateTimeOffset.UtcNow.AddDays(30)
                     : DateTimeOffset.UtcNow.AddMinutes(30),
                 AllowRefresh = true
             };
@@ -224,6 +224,19 @@ namespace Onudhabon_ISD.Controllers
                 {
                     certificatePath = certResult.SecureUrl;
                 }
+            }
+
+            // If EducationLevel is HSC or SSC, clear university fields; if SSC, also clear college fields
+            var eduLevel = model.EducationLevel?.ToLower() ?? string.Empty;
+            if (eduLevel.Contains("ssc") || eduLevel.Contains("hsc"))
+            {
+                model.UniversityName = null;
+                model.UniversityPassingYear = null;
+            }
+            if (eduLevel.Contains("ssc"))
+            {
+                model.HscInstitute = null;
+                model.HscPassingYear = null;
             }
 
             // Create new User entity with all submitted registration information
