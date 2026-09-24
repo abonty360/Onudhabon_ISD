@@ -57,13 +57,16 @@ namespace Onudhabon_ISD.Controllers
             if (int.TryParse(userIdClaim, out int uid))
             {
                 var dbUser = await _context.Users.FindAsync(uid);
-                if (dbUser != null && dbUser.IsRestricted)
+                if (dbUser != null && !dbUser.IsRestricted &&
+                    (dbUser.IsVerified ||
+                     string.Equals(dbUser.VerificationStatus, "Active", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(dbUser.VerificationStatus, "Approved", StringComparison.OrdinalIgnoreCase)))
                 {
-                    return false;
+                    return true;
                 }
             }
 
-            return true;
+            return false;
         }
 
         // GET: /Student or /Student/Index
@@ -86,7 +89,7 @@ namespace Onudhabon_ISD.Controllers
 
             if (!await IsCurrentGuardianApprovedAsync())
             {
-                TempData["ErrorMessage"] = "Your account has been restricted by an administrator. Please contact support.";
+                TempData["ErrorMessage"] = "Your account is pending administrator approval. You can only visit pages until an administrator approves your account.";
                 return RedirectToAction("Index", "Home");
             }
 
@@ -108,7 +111,7 @@ namespace Onudhabon_ISD.Controllers
         {
             if (!await IsCurrentGuardianApprovedAsync())
             {
-                TempData["ErrorMessage"] = "Your account has been restricted by an administrator. Please contact support.";
+                TempData["ErrorMessage"] = "Your account is pending administrator approval. You can only visit pages until an administrator approves your account.";
                 return RedirectToAction("Index", "Home");
             }
 
@@ -204,7 +207,7 @@ namespace Onudhabon_ISD.Controllers
         {
             if (!await IsCurrentGuardianApprovedAsync())
             {
-                TempData["ErrorMessage"] = "Your account has been restricted by an administrator. Please contact support.";
+                TempData["ErrorMessage"] = "Your account is pending administrator approval. You can only visit pages until an administrator approves your account.";
                 return RedirectToAction("Index", "Home");
             }
 
@@ -500,7 +503,7 @@ namespace Onudhabon_ISD.Controllers
 
             if (!await IsCurrentGuardianApprovedAsync())
             {
-                TempData["ErrorMessage"] = "Your account has been restricted by an administrator. Please contact support.";
+                TempData["ErrorMessage"] = "Your account is pending administrator approval. You can only visit pages until an administrator approves your account.";
                 return RedirectToAction("Index", "Home");
             }
 
