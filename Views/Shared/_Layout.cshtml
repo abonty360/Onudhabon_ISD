@@ -126,7 +126,7 @@
                                 </li>
                             }
 
-                            @if (userRole == "Local Guardian" || User.IsInRole("Local Guardian") || userRole == "Admin" || User.IsInRole("Admin"))
+                            @if (userRole == "Local Guardian" || User.IsInRole("Local Guardian"))
                             {
                                 <li class="nav-item me-2">
                                     <a class="btn btn-nav-action btn-sm rounded-pill px-3 py-1.5" asp-controller="Student" asp-action="Progress">
@@ -210,7 +210,7 @@
                                             </a>
                                         </li>
                                     }
-                                    @if (userRole == "Local Guardian" || User.IsInRole("Local Guardian") || userRole == "Admin" || User.IsInRole("Admin"))
+                                    @if (userRole == "Local Guardian" || User.IsInRole("Local Guardian"))
                                     {
                                         <li>
                                             <a class="dropdown-item rounded-3 py-2 fw-semibold text-primary" asp-controller="Student" asp-action="Progress">

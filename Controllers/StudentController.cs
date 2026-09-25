@@ -106,7 +106,7 @@ namespace Onudhabon_ISD.Controllers
 
         // GET: /Student/Enroll
         [HttpGet]
-        [Authorize(Roles = "Local Guardian,Admin")]
+        [Authorize(Roles = "Local Guardian")]
         public async Task<IActionResult> Enroll()
         {
             if (!await IsCurrentGuardianApprovedAsync())
@@ -201,7 +201,7 @@ namespace Onudhabon_ISD.Controllers
 
         // POST: /Student/Enroll
         [HttpPost]
-        [Authorize(Roles = "Local Guardian,Admin")]
+        [Authorize(Roles = "Local Guardian")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Enroll(StudentEnrollmentViewModel model)
         {
@@ -490,14 +490,14 @@ namespace Onudhabon_ISD.Controllers
 
         // GET: /Student/Progress or /Student/TrackProgress
         [HttpGet]
+        [Authorize(Roles = "Local Guardian")]
         public async Task<IActionResult> Progress(string? searchQuery, string? selectedClass)
         {
-            var isAdmin = User.IsInRole("Admin");
             var isLocalGuardian = User.IsInRole("Local Guardian") || User.FindFirst(ClaimTypes.Role)?.Value == "Local Guardian";
 
-            if (!isAdmin && !isLocalGuardian)
+            if (!isLocalGuardian)
             {
-                TempData["ErrorMessage"] = "Student progress tracking is available to registered Local Guardians and Administrators.";
+                TempData["ErrorMessage"] = "Student progress tracking is available to registered Local Guardians only.";
                 return RedirectToAction("Index", "Home");
             }
 
@@ -510,12 +510,8 @@ namespace Onudhabon_ISD.Controllers
             var classPlans = await _context.ClassPlans.ToListAsync();
             var identifiers = await GetCurrentUserIdentifiersAsync();
 
-            var query = _context.Students.AsQueryable();
-            if (!isAdmin)
-            {
-                query = query.Where(s => (s.GuardianId != null && identifiers.Contains(s.GuardianId.ToLower())) ||
-                                         (s.GuardianName != null && identifiers.Contains(s.GuardianName.ToLower())));
-            }
+            var query = _context.Students.Where(s => (s.GuardianId != null && identifiers.Contains(s.GuardianId.ToLower())) ||
+                                                      (s.GuardianName != null && identifiers.Contains(s.GuardianName.ToLower())));
 
             var allStudentsForGuardian = await query.OrderByDescending(s => s.CreatedAt).ToListAsync();
 
