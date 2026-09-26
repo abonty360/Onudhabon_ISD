@@ -103,7 +103,8 @@ builder.Services.AddSession(options =>
 });
 
 // Add MVC Services
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews()
+    .AddRazorRuntimeCompilation();
 
 // Add CORS for Gateway Callbacks
 builder.Services.AddCors(options =>

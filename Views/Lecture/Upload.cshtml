@@ -52,7 +52,8 @@
 
                         <div class="col-md-4">
                             <label asp-for="Subject" class="form-label fw-semibold">Subject *</label>
-                            <input asp-for="Subject" class="form-control rounded-3" placeholder="e.g. Physics, Math..." />
+                            <input asp-for="Subject" class="form-control rounded-3" id="subjectInput" list="subjectOptions" placeholder="e.g. Physics, Math..." />
+                            <datalist id="subjectOptions"></datalist>
                             <span asp-validation-for="Subject" class="text-danger small"></span>
                         </div>
 
@@ -180,6 +181,31 @@
                     errorDiv.textContent = '';
                     errorDiv.style.display = 'none';
                 }
+            }
+
+            // ClassPlan subjects autocomplete
+            const classPlansData = @Html.Raw(ViewBag.ClassPlansJson ?? "[]");
+            const classSelect = document.querySelector('select[name="ClassLevel"]');
+            const subjectDatalist = document.getElementById('subjectOptions');
+
+            function updateUploadSubjects() {
+                if (!classSelect || !subjectDatalist) return;
+                const selectedClass = classSelect.value.trim().replace(/[^0-9]/g, '');
+                subjectDatalist.innerHTML = '';
+                
+                const plan = classPlansData.find(p => p.classLevel === selectedClass);
+                if (plan && plan.subjects) {
+                    plan.subjects.forEach(sub => {
+                        const opt = document.createElement('option');
+                        opt.value = sub;
+                        subjectDatalist.appendChild(opt);
+                    });
+                }
+            }
+
+            if (classSelect) {
+                classSelect.addEventListener('change', updateUploadSubjects);
+                updateUploadSubjects();
             }
         });
     </script>
