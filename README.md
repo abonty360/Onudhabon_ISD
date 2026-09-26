@@ -91,62 +91,6 @@ Onudhabon_ISD/
 └── wwwroot/                       # Static CSS, JS, Images, and Vendor libraries
 ```
 
----
-
-## 🔍 Core Features & Code Line References (Report Documentation)
-
-Below are the key features designed for project reporting and technical evaluation.
-
----
-
-### 1. Recorded Lecture & Material Upload System
-
-#### A. Video Lecture Upload (`Controllers/LectureController.cs`, Lines 280–361)
-Validates educator roles, enforces video file extensions (`.mp4`, `.webm`, `.mkv`), streams the file directly to Cloudinary, extracts an automatic high-definition video thumbnail, and creates a lecture record with `pending` status awaiting admin moderation.
-
-#### B. Study Material Upload (`Controllers/MaterialController.cs`, Lines 280–349)
-Handles educational PDF, PPTX, and DOCX document uploads with format validation, Cloudinary raw asset storage, and automatic file size computation.
-
-### 2. Student Progress Tracking, Class Promotion & Exam Evaluations
-
-#### A. Lecture Evaluation & Dynamic Grade Calculation (`Controllers/StudentController.cs`, Lines 806–955)
-Enables local guardians to record student lecture completion, marks (out of 100), letter grade (`A+`, `A`, `B`, etc.), and remarks. Automatically recalibrates subject-level progress and overall student GPA.
-
-#### B. Academic Class Promotion (`Controllers/StudentController.cs`, Lines 958–1018)
-Validates that a student has completed 100% of their curriculum before allowing promotion to the next NCTB grade level, updating class plan subjects accordingly.
-
-
-### 3. Volunteer Ranking & Performance Recognition Algorithm
-
-#### Performance Weighting & Tier Classification (`Services/VolunteerRankingService.cs`, Lines 7–136)
-Generates monthly leaderboards for Educators (based on approved lectures & study materials) and Local Guardians (based on student enrollment benchmarks and average student academic progress).
-
-### 4. AI Tutor & PDF RAG Knowledge Assistant
-
-#### A. PDF Text Extraction (`Controllers/ChatController.cs`, Lines 28–76)
-Extracts readable text from educational PDF documents using `UglyToad.PdfPig` with streaming buffers to provide domain context to the AI assistant.
-
-#### B. Gemini AI Chat Completion (`Services/GeminiChatService.cs`, Lines 30–80)
-Constructs specialized system prompts with course context, RAG document contents, and chat history, calling Google's Gemini Flash API.
-
-
-### 5. Security, Lockout & Email Verification
-
-#### A. 5-Strike Failed Login Lockout (`Controllers/AccountController.cs`, Lines 92–124)
-Monitors consecutive failed password attempts. At 3 failed attempts, a warning is returned; at 5 failed attempts, the account is automatically locked with `IsRestricted = true` and flagged in the Admin dashboard.
-
-```
-
-#### B. 6-Digit Email OTP Verification (`Controllers/AccountController.cs`, Lines 500–560)
-Generates cryptographically random 6-digit OTP tokens with expiration timestamps and delivers them via Gmail SMTP to verify user email authenticity before granting login access.
-
----
-
-### 6. SSLCommerz & bKash Donation Gateway
-
-#### Donation Transaction Processing (`Controllers/DonationController.cs`, Lines 77–150)
-Processes online charitable contributions with amount validation, unique transaction ID generation (`TXN...`), SSLCommerz session redirection, and database ledger recording.
-
 
 ## 🚦 Getting Started & Local Setup
 
@@ -185,8 +129,3 @@ Processes online charitable contributions with amount validation, unique transac
 5. **Access the Web Portal**:
    Open your browser and navigate to: `https://localhost:5001` or `http://localhost:5000`
 
----
-
-## 🛡️ License
-
-This project is developed for educational and social welfare purposes under the **MIT License**.
