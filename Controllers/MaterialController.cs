@@ -49,7 +49,7 @@ namespace Onudhabon_ISD.Controllers
         // GET: /Material
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> Index(string? classLevel, string? subject, string? topic)
+        public async Task<IActionResult> Index(string? search, string? classLevel, string? subject, string? topic, string? version)
         {
             // Automatically discover and sync any existing Cloudinary material assets if present
             try
@@ -70,8 +70,8 @@ namespace Onudhabon_ISD.Controllers
                                 Description = $"Educational study material for {cDoc.DisplayTitle}",
                                 Instructor = "Educator",
                                 Version = "Bangla",
-                                ClassLevel = "General",
-                                Subject = "General",
+                                ClassLevel = "1",
+                                Subject = "Bangla",
                                 Topic = cDoc.DisplayTitle,
                                 FileUrl = cDoc.SecureUrl,
                                 Size = cDoc.FormattedSize,
@@ -95,6 +95,9 @@ namespace Onudhabon_ISD.Controllers
                 _logger.LogInformation("Cloudinary material discovery skipped: {Message}", ex.Message);
             }
 
+            var classPlans = await ClassPlanHelper.GetSortedClassPlansAsync(_context);
+            var allSubjects = ClassPlanHelper.GetAllDistinctSubjects(classPlans);
+
             var isAdmin = User.IsInRole("Admin") || User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value == "Admin";
             var isEducator = User.IsInRole("Educator") || User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value == "Educator";
             var query = _context.Materials.AsQueryable();
@@ -107,18 +110,30 @@ namespace Onudhabon_ISD.Controllers
             {
                 // Logged-in users see all active materials plus their own uploads (including pending/declined)
                 var userIdentifiers = await GetCurrentUserIdentifiersAsync();
-                query = query.Where(m => m.Status == "Active" || m.Status == "Approved" || m.Status == "approved" 
+                query = query.Where(m => m.Status == "Active" || m.Status == "active" || m.Status == "Approved" || m.Status == "approved" 
                     || (m.Instructor != null && userIdentifiers.Contains(m.Instructor.ToLower())));
             }
             else
             {
                 // Anonymous visitors only see approved materials
-                query = query.Where(m => m.Status == "Active" || m.Status == "Approved" || m.Status == "approved");
+                query = query.Where(m => m.Status == "Active" || m.Status == "active" || m.Status == "Approved" || m.Status == "approved");
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var cleanSearch = search.Trim().ToLower();
+                query = query.Where(m =>
+                    (m.Title != null && m.Title.ToLower().Contains(cleanSearch)) ||
+                    (m.Instructor != null && m.Instructor.ToLower().Contains(cleanSearch)) ||
+                    (m.Topic != null && m.Topic.ToLower().Contains(cleanSearch)) ||
+                    (m.Subject != null && m.Subject.ToLower().Contains(cleanSearch)) ||
+                    (m.Description != null && m.Description.ToLower().Contains(cleanSearch)));
             }
 
             if (!string.IsNullOrWhiteSpace(classLevel))
             {
-                query = query.Where(m => m.ClassLevel == classLevel);
+                var normFilterClass = ClassPlanHelper.NormalizeClassLevel(classLevel);
+                query = query.Where(m => m.ClassLevel == classLevel || m.ClassLevel == normFilterClass || m.ClassLevel == $"Class {normFilterClass}");
             }
 
             if (!string.IsNullOrWhiteSpace(subject))
@@ -131,13 +146,28 @@ namespace Onudhabon_ISD.Controllers
                 query = query.Where(m => m.Topic == topic);
             }
 
+            if (!string.IsNullOrWhiteSpace(version))
+            {
+                query = query.Where(m => m.Version == version);
+            }
+
             var materials = await query
                 .OrderByDescending(m => m.Date)
                 .ToListAsync();
 
+            ViewBag.ClassPlans = classPlans;
+            ViewBag.ClassPlansJson = System.Text.Json.JsonSerializer.Serialize(classPlans.Select(p => new
+            {
+                classLevel = ClassPlanHelper.NormalizeClassLevel(p.ClassLevel),
+                display = $"Class {ClassPlanHelper.NormalizeClassLevel(p.ClassLevel)}",
+                subjects = p.Subjects?.Select(s => s.Name.Trim()).Where(n => !string.IsNullOrEmpty(n)).Distinct().ToList() ?? new List<string>()
+            }));
+            ViewBag.AllSubjects = allSubjects;
             ViewBag.ClassLevel = classLevel;
             ViewBag.Subject = subject;
             ViewBag.Topic = topic;
+            ViewBag.Search = search;
+            ViewBag.Version = version;
 
             return View(materials);
         }
@@ -182,11 +212,26 @@ namespace Onudhabon_ISD.Controllers
             if (int.TryParse(userIdClaim, out int uid))
             {
                 var dbUser = await _context.Users.FindAsync(uid);
-                if (dbUser != null && !string.IsNullOrWhiteSpace(dbUser.FullName))
+                if (dbUser == null || dbUser.IsRestricted || 
+                    (!dbUser.IsVerified && !string.Equals(dbUser.VerificationStatus, "Active", StringComparison.OrdinalIgnoreCase) && !string.Equals(dbUser.VerificationStatus, "Approved", StringComparison.OrdinalIgnoreCase)))
+                {
+                    TempData["ErrorMessage"] = "Your account is pending administrator approval. You can only visit pages until an administrator approves your account.";
+                    return RedirectToAction("Index", "Material");
+                }
+
+                if (!string.IsNullOrWhiteSpace(dbUser.FullName))
                 {
                     userFullName = dbUser.FullName;
                 }
             }
+
+            var classPlans = await ClassPlanHelper.GetSortedClassPlansAsync(_context);
+            ViewBag.ClassPlansJson = System.Text.Json.JsonSerializer.Serialize(classPlans.Select(p => new
+            {
+                classLevel = ClassPlanHelper.NormalizeClassLevel(p.ClassLevel),
+                display = $"Class {ClassPlanHelper.NormalizeClassLevel(p.ClassLevel)}",
+                subjects = p.Subjects?.Select(s => s.Name.Trim()).Where(n => !string.IsNullOrEmpty(n)).Distinct().ToList() ?? new List<string>()
+            }));
 
             return View(new MaterialUploadViewModel
             {
@@ -205,7 +250,14 @@ namespace Onudhabon_ISD.Controllers
             if (int.TryParse(userIdClaim, out int uid))
             {
                 var dbUser = await _context.Users.FindAsync(uid);
-                if (dbUser != null && !string.IsNullOrWhiteSpace(dbUser.FullName))
+                if (dbUser == null || dbUser.IsRestricted || 
+                    (!dbUser.IsVerified && !string.Equals(dbUser.VerificationStatus, "Active", StringComparison.OrdinalIgnoreCase) && !string.Equals(dbUser.VerificationStatus, "Approved", StringComparison.OrdinalIgnoreCase)))
+                {
+                    TempData["ErrorMessage"] = "Your account is pending administrator approval. You can only visit pages until an administrator approves your account.";
+                    return RedirectToAction("Index", "Material");
+                }
+
+                if (!string.IsNullOrWhiteSpace(dbUser.FullName))
                 {
                     userFullName = dbUser.FullName;
                 }
@@ -216,12 +268,41 @@ namespace Onudhabon_ISD.Controllers
 
             if (!ModelState.IsValid)
             {
+                var classPlans = await ClassPlanHelper.GetSortedClassPlansAsync(_context);
+                ViewBag.ClassPlansJson = System.Text.Json.JsonSerializer.Serialize(classPlans.Select(p => new
+                {
+                    classLevel = ClassPlanHelper.NormalizeClassLevel(p.ClassLevel),
+                    display = $"Class {ClassPlanHelper.NormalizeClassLevel(p.ClassLevel)}",
+                    subjects = p.Subjects?.Select(s => s.Name.Trim()).Where(n => !string.IsNullOrEmpty(n)).Distinct().ToList() ?? new List<string>()
+                }));
                 return View(model);
             }
 
             if (model.MaterialFile == null || model.MaterialFile.Length == 0)
             {
-                ModelState.AddModelError(nameof(model.MaterialFile), "Please select a material document file (PDF/DOCX) to upload.");
+                ModelState.AddModelError(nameof(model.MaterialFile), "Please select a material document file (.pdf, .docx, .doc, .pptx, .ppt) to upload.");
+                var classPlans = await ClassPlanHelper.GetSortedClassPlansAsync(_context);
+                ViewBag.ClassPlansJson = System.Text.Json.JsonSerializer.Serialize(classPlans.Select(p => new
+                {
+                    classLevel = ClassPlanHelper.NormalizeClassLevel(p.ClassLevel),
+                    display = $"Class {ClassPlanHelper.NormalizeClassLevel(p.ClassLevel)}",
+                    subjects = p.Subjects?.Select(s => s.Name.Trim()).Where(n => !string.IsNullOrEmpty(n)).Distinct().ToList() ?? new List<string>()
+                }));
+                return View(model);
+            }
+
+            var allowedExtensions = new[] { ".pdf", ".docx", ".doc", ".pptx", ".ppt" };
+            var fileExt = Path.GetExtension(model.MaterialFile.FileName).ToLowerInvariant();
+            if (string.IsNullOrEmpty(fileExt) || !allowedExtensions.Contains(fileExt))
+            {
+                ModelState.AddModelError(nameof(model.MaterialFile), "Invalid file type. Only document files (.pdf, .docx, .doc, .pptx, .ppt) are allowed.");
+                var classPlans = await ClassPlanHelper.GetSortedClassPlansAsync(_context);
+                ViewBag.ClassPlansJson = System.Text.Json.JsonSerializer.Serialize(classPlans.Select(p => new
+                {
+                    classLevel = ClassPlanHelper.NormalizeClassLevel(p.ClassLevel),
+                    display = $"Class {ClassPlanHelper.NormalizeClassLevel(p.ClassLevel)}",
+                    subjects = p.Subjects?.Select(s => s.Name.Trim()).Where(n => !string.IsNullOrEmpty(n)).Distinct().ToList() ?? new List<string>()
+                }));
                 return View(model);
             }
 
@@ -230,6 +311,13 @@ namespace Onudhabon_ISD.Controllers
             if (!uploadResult.Success)
             {
                 ModelState.AddModelError(nameof(model.MaterialFile), uploadResult.ErrorMessage ?? "Failed to upload document to Cloudinary.");
+                var classPlans = await ClassPlanHelper.GetSortedClassPlansAsync(_context);
+                ViewBag.ClassPlansJson = System.Text.Json.JsonSerializer.Serialize(classPlans.Select(p => new
+                {
+                    classLevel = ClassPlanHelper.NormalizeClassLevel(p.ClassLevel),
+                    display = $"Class {ClassPlanHelper.NormalizeClassLevel(p.ClassLevel)}",
+                    subjects = p.Subjects?.Select(s => s.Name.Trim()).Where(n => !string.IsNullOrEmpty(n)).Distinct().ToList() ?? new List<string>()
+                }));
                 return View(model);
             }
 
@@ -297,11 +385,12 @@ namespace Onudhabon_ISD.Controllers
         public async Task<IActionResult> GetApproved(string? classLevel, string? subject)
         {
             var query = _context.Materials
-                .Where(m => m.Status == "Active" || m.Status == "Approved" || m.Status == "approved");
+                .Where(m => m.Status == "Active" || m.Status == "active" || m.Status == "Approved" || m.Status == "approved");
 
             if (!string.IsNullOrWhiteSpace(classLevel))
             {
-                query = query.Where(m => m.ClassLevel == classLevel);
+                var normFilterClass = ClassPlanHelper.NormalizeClassLevel(classLevel);
+                query = query.Where(m => m.ClassLevel == classLevel || m.ClassLevel == normFilterClass || m.ClassLevel == $"Class {normFilterClass}");
             }
 
             if (!string.IsNullOrWhiteSpace(subject))
@@ -349,18 +438,19 @@ namespace Onudhabon_ISD.Controllers
                 if (User.Identity != null && User.Identity.IsAuthenticated)
                 {
                     var userIdentifiers = await GetCurrentUserIdentifiersAsync();
-                    query = query.Where(m => m.Status == "Active" || m.Status == "Approved" || m.Status == "approved" 
+                    query = query.Where(m => m.Status == "Active" || m.Status == "active" || m.Status == "Approved" || m.Status == "approved" 
                         || (m.Instructor != null && userIdentifiers.Contains(m.Instructor.ToLower())));
                 }
                 else
                 {
-                    query = query.Where(m => m.Status == "Active" || m.Status == "Approved" || m.Status == "approved");
+                    query = query.Where(m => m.Status == "Active" || m.Status == "active" || m.Status == "Approved" || m.Status == "approved");
                 }
             }
 
             if (!string.IsNullOrWhiteSpace(classLevel))
             {
-                query = query.Where(m => m.ClassLevel == classLevel);
+                var normFilterClass = ClassPlanHelper.NormalizeClassLevel(classLevel);
+                query = query.Where(m => m.ClassLevel == classLevel || m.ClassLevel == normFilterClass || m.ClassLevel == $"Class {normFilterClass}");
             }
 
             var topics = await query

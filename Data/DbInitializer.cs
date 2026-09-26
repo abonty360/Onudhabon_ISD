@@ -25,6 +25,7 @@ namespace Onudhabon_ISD.Data
                     Bio = "Primary System Administrator overseeing volunteer verification, content moderation, and platform governance.",
                     IsRestricted = false,
                     IsVerified = true,
+                    IsEmailVerified = true,
                     VerificationStatus = "Active",
                     AgreeToTerms = true,
                     CreatedAt = DateTime.UtcNow,
@@ -34,6 +35,11 @@ namespace Onudhabon_ISD.Data
                 admin.PasswordHash = passwordHasher.HashPassword(admin, "Admin@12345");
 
                 context.Users.Add(admin);
+                context.SaveChanges();
+            }
+            else if (!existingAdmin.IsEmailVerified)
+            {
+                existingAdmin.IsEmailVerified = true;
                 context.SaveChanges();
             }
         }

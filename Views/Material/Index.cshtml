@@ -3,6 +3,16 @@
 
 @{
     ViewData["Title"] = "Study Materials & Notes - Onudhabon";
+
+    var classPlans = ViewBag.ClassPlans as List<Onudhabon_ISD.Models.ClassPlan>;
+    var allSubjects = ViewBag.AllSubjects as List<string> ?? new List<string>();
+
+    var topics = Model
+        .Where(m => !string.IsNullOrWhiteSpace(m.Topic))
+        .Select(m => m.Topic!)
+        .Distinct()
+        .OrderBy(x => x)
+        .ToList();
 }
 
 <div class="material-page">
@@ -24,18 +34,30 @@
             }
         </div>
 
-        <form method="get" asp-action="Index" class="material-filters">
+        <form method="get" asp-action="Index" class="material-filters" id="materialFilters">
             <div class="material-filter-field material-search-field">
                 <label for="material-search">Search</label>
-                <input id="material-search" name="search" type="text" placeholder="Search lectures, instructors, or topics" />
+                <input id="material-search" name="search" type="text" placeholder="Search materials, instructors, or topics" value="@(ViewBag.Search ?? Context.Request.Query["search"])" />
             </div>
             <div class="material-filter-field">
                 <label for="classLevel">Class</label>
                 <select id="classLevel" name="classLevel">
                     <option value="">All Classes</option>
-                    @foreach (var item in Model.Select(m => m.ClassLevel).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x))
+                    @if (classPlans != null)
                     {
-                        <option value="@item" selected="@(ViewBag.ClassLevel == item)">@item</option>
+                        @foreach (var plan in classPlans)
+                        {
+                            var norm = Onudhabon_ISD.Data.ClassPlanHelper.NormalizeClassLevel(plan.ClassLevel);
+                            var isSel = (ViewBag.ClassLevel == norm || ViewBag.ClassLevel == plan.ClassLevel || Context.Request.Query["classLevel"] == norm);
+                            <option value="@norm" selected="@isSel">Class @norm</option>
+                        }
+                    }
+                    else
+                    {
+                        @for (int i = 1; i <= 12; i++)
+                        {
+                            <option value="@i" selected="@(Context.Request.Query["classLevel"] == i.ToString())">Class @i</option>
+                        }
                     }
                 </select>
             </div>
@@ -43,19 +65,19 @@
                 <label for="subject">Subject</label>
                 <select id="subject" name="subject">
                     <option value="">All Subjects</option>
-                    @foreach (var item in Model.Select(m => m.Subject).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x))
+                    @foreach (var item in allSubjects)
                     {
-                        <option value="@item" selected="@(ViewBag.Subject == item)">@item</option>
+                        <option value="@item" selected="@(ViewBag.Subject == item || Context.Request.Query["subject"] == item)">@item</option>
                     }
                 </select>
             </div>
             <div class="material-filter-field">
                 <label for="topic">Topic</label>
                 <select id="topic" name="topic">
-                    <option value="">Select subject</option>
-                    @foreach (var item in Model.Select(m => m.Topic).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x))
+                    <option value="">All Topics</option>
+                    @foreach (var item in topics)
                     {
-                        <option value="@item" selected="@(ViewBag.Topic == item)">@item</option>
+                        <option value="@item" selected="@(ViewBag.Topic == item || Context.Request.Query["topic"] == item)">@item</option>
                     }
                 </select>
             </div>
@@ -63,9 +85,16 @@
                 <label for="version">Version</label>
                 <select id="version" name="version">
                     <option value="">Both Versions</option>
-                    <option value="Bangla">Bangla</option>
-                    <option value="English">English</option>
+                    <option value="Bangla" selected="@(ViewBag.Version == "Bangla" || Context.Request.Query["version"] == "Bangla")">Bangla</option>
+                    <option value="English" selected="@(ViewBag.Version == "English" || Context.Request.Query["version"] == "English")">English</option>
                 </select>
+            </div>
+            <div class="material-filter-field material-actions-field">
+                <label class="invisible" aria-hidden="true">&nbsp;</label>
+                <button type="button" class="btn btn-outline-secondary btn-material-clear d-inline-flex align-items-center justify-content-center gap-1 w-100" id="clearMaterialFiltersBtn" title="Clear search and filters">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                    <span>Clear</span>
+                </button>
             </div>
         </form>
 
@@ -200,6 +229,9 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const cards = Array.from(document.querySelectorAll('.material-card'));
+        const classPlansData = @Html.Raw(ViewBag.ClassPlansJson ?? "[]");
+        const allSubjectsList = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(allSubjects));
+
         const searchInput = document.getElementById('material-search');
         const classSelect = document.getElementById('classLevel');
         const subjectSelect = document.getElementById('subject');
@@ -214,9 +246,67 @@
             return element ? element.value.trim().toLowerCase() : '';
         }
 
+        function updateSubjectDropdown() {
+            if (!subjectSelect) return;
+
+            const selectedClass = classSelect ? classSelect.value.trim() : '';
+            const currentSubject = subjectSelect.value;
+
+            let availableSubjects = [];
+            if (selectedClass) {
+                const normSelected = selectedClass.replace(/[^0-9]/g, '');
+                const plan = classPlansData.find(p => p.classLevel === normSelected || p.classLevel === selectedClass);
+                if (plan && plan.subjects) {
+                    availableSubjects = plan.subjects;
+                }
+            } else {
+                availableSubjects = allSubjectsList;
+            }
+
+            subjectSelect.innerHTML = '<option value="">All Subjects</option>';
+            availableSubjects.forEach(function (sub) {
+                const opt = document.createElement('option');
+                opt.value = sub;
+                opt.textContent = sub;
+                if (sub.toLowerCase() === currentSubject.toLowerCase()) {
+                    opt.selected = true;
+                }
+                subjectSelect.appendChild(opt);
+            });
+        }
+
+        function updateTopicDropdown() {
+            if (!topicSelect) return;
+
+            const selectedClass = classSelect ? classSelect.value.trim().replace(/[^0-9]/g, '') : '';
+            const selectedSubject = subjectSelect ? subjectSelect.value.trim().toLowerCase() : '';
+            const currentTopic = topicSelect.value;
+
+            const relevantCards = cards.filter(function (card) {
+                const cardClass = (card.dataset.class || '').replace(/[^0-9]/g, '');
+                const cardSubject = (card.dataset.subject || '').toLowerCase();
+                const matchC = !selectedClass || cardClass === selectedClass;
+                const matchS = !selectedSubject || cardSubject === selectedSubject;
+                return matchC && matchS;
+            });
+
+            const uniqueTopics = Array.from(new Set(relevantCards.map(c => c.dataset.topic).filter(Boolean))).sort();
+
+            topicSelect.innerHTML = '<option value="">All Topics</option>';
+            uniqueTopics.forEach(function (t) {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t;
+                if (t.toLowerCase() === currentTopic.toLowerCase()) {
+                    opt.selected = true;
+                }
+                topicSelect.appendChild(opt);
+            });
+        }
+
         function applyFilters() {
             const search = getValue(searchInput);
-            const classFilter = getValue(classSelect);
+            const classFilter = getValue(classSelect).replace(/[^0-9]/g, '');
             const subjectFilter = getValue(subjectSelect);
             const topicFilter = getValue(topicSelect);
             const versionFilter = getValue(versionSelect);
@@ -224,12 +314,12 @@
             filteredCards = cards.filter(function (card) {
                 const title = (card.dataset.title || '').toLowerCase();
                 const instructor = (card.dataset.instructor || '').toLowerCase();
-                const className = (card.dataset.class || '').toLowerCase();
+                const className = (card.dataset.class || '').toLowerCase().replace(/[^0-9]/g, '');
                 const subject = (card.dataset.subject || '').toLowerCase();
                 const topic = (card.dataset.topic || '').toLowerCase();
                 const version = (card.dataset.version || '').toLowerCase();
 
-                const matchesSearch = !search || title.includes(search) || instructor.includes(search) || topic.includes(search);
+                const matchesSearch = !search || title.includes(search) || instructor.includes(search) || topic.includes(search) || subject.includes(search);
                 const matchesClass = !classFilter || className === classFilter;
                 const matchesSubject = !subjectFilter || subject === subjectFilter;
                 const matchesTopic = !topicFilter || topic === topicFilter;
@@ -340,7 +430,39 @@
             }
         }
 
-        [searchInput, classSelect, subjectSelect, topicSelect, versionSelect].forEach(function (element) {
+        if (classSelect) {
+            classSelect.addEventListener('change', function () {
+                updateSubjectDropdown();
+                updateTopicDropdown();
+                applyFilters();
+            });
+        }
+
+        if (subjectSelect) {
+            subjectSelect.addEventListener('change', function () {
+                updateTopicDropdown();
+                applyFilters();
+            });
+        }
+
+        const clearBtn = document.getElementById('clearMaterialFiltersBtn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function () {
+                if (searchInput) searchInput.value = '';
+                if (classSelect) classSelect.value = '';
+                if (versionSelect) versionSelect.value = '';
+                updateSubjectDropdown();
+                if (subjectSelect) subjectSelect.value = '';
+                updateTopicDropdown();
+                if (topicSelect) topicSelect.value = '';
+                applyFilters();
+                if (window.location.search) {
+                    history.replaceState(null, '', window.location.pathname);
+                }
+            });
+        }
+
+        [searchInput, topicSelect, versionSelect].forEach(function (element) {
             if (element) {
                 element.addEventListener('input', applyFilters);
                 element.addEventListener('change', applyFilters);

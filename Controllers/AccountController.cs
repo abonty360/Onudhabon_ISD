@@ -16,15 +16,18 @@ namespace Onudhabon_ISD.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IPasswordHasher<User> _passwordHasher;
         private readonly ICloudinaryService _cloudinaryService;
+        private readonly IEmailService _emailService;
 
         public AccountController(
             ApplicationDbContext context,
             IPasswordHasher<User> passwordHasher,
-            ICloudinaryService cloudinaryService)
+            ICloudinaryService cloudinaryService,
+            IEmailService emailService)
         {
             _context = context;
             _passwordHasher = passwordHasher;
             _cloudinaryService = cloudinaryService;
+            _emailService = emailService;
         }
 
         [HttpGet]
@@ -66,7 +69,7 @@ namespace Onudhabon_ISD.Controllers
             }
 
             var input = model.UsernameOrEmail?.Trim() ?? string.Empty;
-            
+
             // Find user by Email (case-insensitive)
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == input.ToLower());
 
@@ -76,22 +79,56 @@ namespace Onudhabon_ISD.Controllers
                 return View(model);
             }
 
-            // Verify password hash
-            var verificationResult = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, model.Password);
-            if (verificationResult == PasswordVerificationResult.Failed)
-            {
-                ModelState.AddModelError(string.Empty, "Invalid login credentials. Please check your password.");
-                return View(model);
-            }
-
-            // Check if user account has been restricted by Admin
+            // 1. Check if user account has already been restricted / locked
             if (user.IsRestricted)
             {
                 ViewBag.RestrictedModal = true;
-                ViewBag.ModalTitle = "Account Restricted";
-                ViewBag.ModalMessage = "Your account has been restricted by the administrator. You are currently blocked from logging in. Please contact the administrator or support if you need assistance.";
-                ModelState.AddModelError(string.Empty, "Your account has been restricted. You are blocked from logging in.");
+                ViewBag.ModalTitle = "Account Locked";
+                ViewBag.ModalMessage = "Your account has been locked for security purposes, contact admin (admin@example.com) for details.";
+                ModelState.AddModelError(string.Empty, "Your account has been locked for security purposes, contact admin (admin@example.com) for details.");
                 return View(model);
+            }
+
+            // 2. Verify password hash
+            var verificationResult = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, model.Password);
+            if (verificationResult == PasswordVerificationResult.Failed)
+            {
+                user.FailedLoginAttempts++;
+                user.LastFailedLoginAt = DateTime.UtcNow;
+
+                if (user.FailedLoginAttempts >= 5)
+                {
+                    user.IsRestricted = true;
+                    user.RestrictionReason = "Locked automatically due to 5 consecutive failed login attempts.";
+                    await _context.SaveChangesAsync();
+
+                    ViewBag.RestrictedModal = true;
+                    ViewBag.ModalTitle = "Account Locked";
+                    ViewBag.ModalMessage = "Your account has been locked for security purposes, contact admin (admin@example.com) for details.";
+                    ModelState.AddModelError(string.Empty, "Your account has been locked for security purposes, contact admin (admin@example.com) for details.");
+                    return View(model);
+                }
+                else if (user.FailedLoginAttempts >= 3)
+                {
+                    await _context.SaveChangesAsync();
+                    var remainingAttempts = 5 - user.FailedLoginAttempts;
+                    ModelState.AddModelError(string.Empty, $"Warning: You have entered an incorrect password {user.FailedLoginAttempts} times. After 5 failed attempts, your account will be locked for security purposes ({remainingAttempts} attempt{(remainingAttempts == 1 ? "" : "s")} remaining).");
+                    return View(model);
+                }
+                else
+                {
+                    await _context.SaveChangesAsync();
+                    ModelState.AddModelError(string.Empty, "Invalid login credentials. Please check your password.");
+                    return View(model);
+                }
+            }
+
+            // Reset failed login attempts on successful credentials match
+            if (user.FailedLoginAttempts > 0)
+            {
+                user.FailedLoginAttempts = 0;
+                user.RestrictionReason = null;
+                await _context.SaveChangesAsync();
             }
 
             // Check if volunteer verification status was declined by Admin
@@ -102,6 +139,34 @@ namespace Onudhabon_ISD.Controllers
                 ViewBag.ModalMessage = "Your volunteer verification status has been declined by the administrator. Please contact support or the administrator for further inquiries.";
                 ModelState.AddModelError(string.Empty, "Your verification status has been declined. You cannot log in.");
                 return View(model);
+            }
+
+            // Check if email address has been verified
+            if (!string.Equals(user.Role, "Admin", StringComparison.OrdinalIgnoreCase) && !user.IsEmailVerified)
+            {
+                ViewBag.UnverifiedEmailModal = true;
+                ViewBag.UnverifiedEmail = user.Email;
+                ViewBag.ModalTitle = "Email Verification Required";
+                ViewBag.ModalMessage = $"Your email address ({user.Email}) has not been verified yet. Please enter the 6-digit verification code sent to your email to verify your account.";
+                ModelState.AddModelError(string.Empty, "Your email address is not verified. Please verify your email before logging in.");
+                return View(model);
+            }
+
+            // Check if registered user account is pending approval by Admin
+            if (!string.Equals(user.Role, "Admin", StringComparison.OrdinalIgnoreCase))
+            {
+                bool isApproved = user.IsVerified ||
+                    string.Equals(user.VerificationStatus, "Active", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(user.VerificationStatus, "Approved", StringComparison.OrdinalIgnoreCase);
+
+                if (!isApproved)
+                {
+                    ViewBag.PendingModal = true;
+                    ViewBag.ModalTitle = "Account Pending Approval";
+                    ViewBag.ModalMessage = "Your account registration has been received and is currently pending approval by an administrator. Until an administrator approves your registered account, you can only browse and visit pages as a guest.";
+                    ModelState.AddModelError(string.Empty, "Your account is pending administrator approval. You can only visit pages as a guest until your account is approved.");
+                    return View(model);
+                }
             }
 
             // Create Claims for authenticated session
@@ -125,8 +190,8 @@ namespace Onudhabon_ISD.Controllers
             var authProperties = new AuthenticationProperties
             {
                 IsPersistent = model.RememberMe,
-                ExpiresUtc = model.RememberMe 
-                    ? DateTimeOffset.UtcNow.AddDays(30) 
+                ExpiresUtc = model.RememberMe
+                    ? DateTimeOffset.UtcNow.AddDays(30)
                     : DateTimeOffset.UtcNow.AddMinutes(30),
                 AllowRefresh = true
             };
@@ -226,6 +291,19 @@ namespace Onudhabon_ISD.Controllers
                 }
             }
 
+            // If EducationLevel is HSC or SSC, clear university fields; if SSC, also clear college fields
+            var eduLevel = model.EducationLevel?.ToLower() ?? string.Empty;
+            if (eduLevel.Contains("ssc") || eduLevel.Contains("hsc"))
+            {
+                model.UniversityName = null;
+                model.UniversityPassingYear = null;
+            }
+            if (eduLevel.Contains("ssc"))
+            {
+                model.HscInstitute = null;
+                model.HscPassingYear = null;
+            }
+
             // Create new User entity with all submitted registration information
             var user = new User
             {
@@ -255,6 +333,7 @@ namespace Onudhabon_ISD.Controllers
                 AgreeToTerms = model.AgreeToTerms,
                 IsRestricted = false,
                 IsVerified = false,
+                IsEmailVerified = false,
                 VerificationStatus = "Pending",
                 CreatedAt = DateTime.UtcNow,
                 __v = 0
@@ -263,11 +342,481 @@ namespace Onudhabon_ISD.Controllers
             // Securely hash password
             user.PasswordHash = _passwordHasher.HashPassword(user, model.Password);
 
+            // Generate 6-digit OTP and secure verification token
+            var otp = System.Security.Cryptography.RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+            var token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
+            user.EmailOtp = otp;
+            user.EmailOtpExpiry = DateTime.UtcNow.AddMinutes(15);
+            user.EmailVerificationToken = token;
+            user.EmailVerificationTokenExpiry = DateTime.UtcNow.AddHours(24);
+
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            TempData["SuccessMessage"] = "Account registered successfully! Please sign in with your credentials.";
-            return RedirectToAction("Login", new { returnUrl });
+            // Send OTP email
+            var verifyUrl = Url.Action("VerifyEmail", "Account", 
+                new { token = user.EmailVerificationToken, email = user.Email }, 
+                protocol: Request.Scheme) ?? $"{Request.Scheme}://{Request.Host}/Account/VerifyEmail?token={user.EmailVerificationToken}&email={Uri.EscapeDataString(user.Email)}";
+
+            var emailSent = await _emailService.SendOtpEmailAsync(user.Email, user.FullName, otp, verifyUrl);
+            if (emailSent)
+            {
+                TempData["SuccessMessage"] = $"Registration submitted successfully! We sent a 6-digit verification OTP to {user.Email}. Please enter the code below.";
+            }
+            else
+            {
+                TempData["WarningMessage"] = $"Registration submitted! We generated your verification OTP for {user.Email}. If you don't receive the email shortly, please click 'Resend OTP'.";
+            }
+
+            return RedirectToAction(nameof(VerifyOtp), new { email = user.Email, returnUrl });
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+        public async Task<IActionResult> VerifyOtp(string? email, string? returnUrl = null)
+        {
+            SetNoCacheHeaders();
+
+            if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                return RedirectAuthenticatedUser();
+            }
+
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return RedirectToAction(nameof(Login), new { returnUrl });
+            }
+
+            var cleanEmail = email.Trim().ToLowerInvariant();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == cleanEmail);
+            if (user == null)
+            {
+                TempData["ErrorMessage"] = "No account found matching this email address.";
+                return RedirectToAction(nameof(Login), new { returnUrl });
+            }
+
+            if (user.IsEmailVerified)
+            {
+                TempData["SuccessMessage"] = "Your email address is already verified! Your account is currently pending administrator approval.";
+                return RedirectToAction(nameof(Login), new { returnUrl });
+            }
+
+            var model = new VerifyOtpViewModel
+            {
+                Email = user.Email,
+                ReturnUrl = returnUrl
+            };
+
+            return View(model);
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+        public async Task<IActionResult> VerifyOtp(VerifyOtpViewModel model)
+        {
+            SetNoCacheHeaders();
+
+            if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                return RedirectAuthenticatedUser();
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+
+            var cleanEmail = model.Email.Trim().ToLowerInvariant();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == cleanEmail);
+
+            if (user == null)
+            {
+                ModelState.AddModelError(string.Empty, "No account was found matching this email address.");
+                return View(model);
+            }
+
+            if (user.IsEmailVerified)
+            {
+                TempData["SuccessMessage"] = "Your email address is already verified! Your account is currently pending administrator approval.";
+                return RedirectToAction(nameof(Login), new { returnUrl = model.ReturnUrl });
+            }
+
+            if (user.EmailOtpExpiry.HasValue && user.EmailOtpExpiry.Value < DateTime.UtcNow)
+            {
+                ModelState.AddModelError(nameof(model.Otp), "This verification OTP has expired. Please click 'Resend OTP' to receive a new code.");
+                return View(model);
+            }
+
+            var enteredOtp = model.Otp?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(user.EmailOtp) || !string.Equals(user.EmailOtp.Trim(), enteredOtp, StringComparison.Ordinal))
+            {
+                ModelState.AddModelError(nameof(model.Otp), "Invalid OTP code. Please enter the correct 6-digit code sent to your email.");
+                return View(model);
+            }
+
+            // Successfully verified via OTP
+            user.IsEmailVerified = true;
+            user.EmailOtp = null;
+            user.EmailOtpExpiry = null;
+            user.EmailVerificationToken = null;
+            user.EmailVerificationTokenExpiry = null;
+            await _context.SaveChangesAsync();
+
+            TempData["SuccessMessage"] = "Email verified successfully! Your account registration is now under administrator review. Once approved, you will be able to log in.";
+            return RedirectToAction(nameof(Login), new { returnUrl = model.ReturnUrl });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResendOtp(string? email, string? returnUrl = null)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                TempData["ErrorMessage"] = "Please provide an email address.";
+                return RedirectToAction(nameof(Login), new { returnUrl });
+            }
+
+            var cleanEmail = email.Trim().ToLowerInvariant();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == cleanEmail);
+
+            if (user == null)
+            {
+                TempData["SuccessMessage"] = "If an account with that email exists, a fresh verification OTP has been sent.";
+                return RedirectToAction(nameof(VerifyOtp), new { email, returnUrl });
+            }
+
+            if (user.IsEmailVerified)
+            {
+                TempData["SuccessMessage"] = "Your email address is already verified! Your account is currently awaiting administrator review.";
+                return RedirectToAction(nameof(Login), new { returnUrl });
+            }
+
+            // Generate fresh OTP & verification token
+            var otp = System.Security.Cryptography.RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+            var token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
+            user.EmailOtp = otp;
+            user.EmailOtpExpiry = DateTime.UtcNow.AddMinutes(15);
+            user.EmailVerificationToken = token;
+            user.EmailVerificationTokenExpiry = DateTime.UtcNow.AddHours(24);
+            await _context.SaveChangesAsync();
+
+            var verifyUrl = Url.Action("VerifyEmail", "Account", new { token = user.EmailVerificationToken, email = user.Email }, Request.Scheme)
+                ?? $"{Request.Scheme}://{Request.Host}/Account/VerifyEmail?token={user.EmailVerificationToken}&email={Uri.EscapeDataString(user.Email)}";
+            await _emailService.SendOtpEmailAsync(user.Email, user.FullName, otp, verifyUrl);
+
+            TempData["SuccessMessage"] = $"A fresh 6-digit OTP has been sent to {user.Email}. Please check your inbox (and spam folder).";
+            return RedirectToAction(nameof(VerifyOtp), new { email = user.Email, returnUrl });
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> VerifyEmail(string? token, string? email)
+        {
+            if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(email))
+            {
+                ViewBag.Success = false;
+                ViewBag.Title = "Invalid Verification Link";
+                ViewBag.Message = "The verification link is missing required parameters. Please check the email link or enter your OTP.";
+                return View();
+            }
+
+            var cleanEmail = email.Trim().ToLowerInvariant();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == cleanEmail);
+
+            if (user == null)
+            {
+                ViewBag.Success = false;
+                ViewBag.Title = "Account Not Found";
+                ViewBag.Message = "No account was found matching this email address.";
+                return View();
+            }
+
+            if (user.IsEmailVerified)
+            {
+                ViewBag.Success = true;
+                ViewBag.AlreadyVerified = true;
+                ViewBag.Title = "Email Already Verified";
+                ViewBag.Message = "Your email address has already been verified. Your account is currently pending administrator approval.";
+                return View();
+            }
+
+            if (user.EmailVerificationToken != token || (user.EmailVerificationTokenExpiry.HasValue && user.EmailVerificationTokenExpiry.Value < DateTime.UtcNow))
+            {
+                ViewBag.Success = false;
+                ViewBag.Expired = true;
+                ViewBag.Email = user.Email;
+                ViewBag.Title = "Verification Link Expired or Invalid";
+                ViewBag.Message = "This email verification link has expired or is invalid. You can enter your 6-digit OTP code instead.";
+                return View();
+            }
+
+            // Successfully verified!
+            user.IsEmailVerified = true;
+            user.EmailVerificationToken = null;
+            user.EmailVerificationTokenExpiry = null;
+            user.EmailOtp = null;
+            user.EmailOtpExpiry = null;
+            await _context.SaveChangesAsync();
+
+            ViewBag.Success = true;
+            ViewBag.Title = "Email Verified Successfully!";
+            ViewBag.Message = "Your email address has been successfully verified! An administrator will now review your account application. Once approved, you will be able to log in.";
+            return View();
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+        public IActionResult ForgotPassword()
+        {
+            SetNoCacheHeaders();
+
+            if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                return RedirectAuthenticatedUser();
+            }
+
+            return View(new ForgotPasswordViewModel());
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+        public async Task<IActionResult> ForgotPassword(ForgotPasswordViewModel model)
+        {
+            SetNoCacheHeaders();
+
+            if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                return RedirectAuthenticatedUser();
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+
+            var cleanEmail = model.Email.Trim().ToLowerInvariant();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == cleanEmail);
+
+            if (user != null)
+            {
+                // Generate 6-digit OTP (valid for 15 minutes)
+                var otp = System.Security.Cryptography.RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+                user.PasswordResetOtp = otp;
+                user.PasswordResetOtpExpiry = DateTime.UtcNow.AddMinutes(15);
+                // Clear any previous reset token
+                user.PasswordResetToken = null;
+                user.PasswordResetTokenExpiry = null;
+                await _context.SaveChangesAsync();
+
+                await _emailService.SendPasswordResetOtpEmailAsync(user.Email, user.FullName, otp);
+            }
+
+            // Always redirect to OTP page (even if user doesn't exist, to prevent email enumeration)
+            TempData["SuccessMessage"] = $"If an account with that email exists, a 6-digit OTP has been sent. Please check your inbox and spam folder.";
+            return RedirectToAction(nameof(VerifyResetOtp), new { email = cleanEmail });
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+        public IActionResult VerifyResetOtp(string? email)
+        {
+            SetNoCacheHeaders();
+
+            if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                return RedirectAuthenticatedUser();
+            }
+
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return RedirectToAction(nameof(ForgotPassword));
+            }
+
+            var model = new VerifyResetOtpViewModel
+            {
+                Email = email.Trim().ToLowerInvariant()
+            };
+
+            return View(model);
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+        public async Task<IActionResult> VerifyResetOtp(VerifyResetOtpViewModel model)
+        {
+            SetNoCacheHeaders();
+
+            if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                return RedirectAuthenticatedUser();
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+
+            var cleanEmail = model.Email.Trim().ToLowerInvariant();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == cleanEmail);
+
+            if (user == null)
+            {
+                ModelState.AddModelError(string.Empty, "No account was found matching this email address.");
+                return View(model);
+            }
+
+            if (user.PasswordResetOtpExpiry.HasValue && user.PasswordResetOtpExpiry.Value < DateTime.UtcNow)
+            {
+                ModelState.AddModelError(nameof(model.Otp), "This OTP has expired. Please click 'Resend OTP' to receive a new code.");
+                return View(model);
+            }
+
+            var enteredOtp = model.Otp?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(user.PasswordResetOtp) || !string.Equals(user.PasswordResetOtp.Trim(), enteredOtp, StringComparison.Ordinal))
+            {
+                ModelState.AddModelError(nameof(model.Otp), "Invalid OTP code. Please enter the correct 6-digit code sent to your email.");
+                return View(model);
+            }
+
+            // OTP verified — generate a secure reset token for the password form
+            var token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+            user.PasswordResetToken = token;
+            user.PasswordResetTokenExpiry = DateTime.UtcNow.AddHours(1);
+            user.PasswordResetOtp = null;
+            user.PasswordResetOtpExpiry = null;
+            await _context.SaveChangesAsync();
+
+            TempData["SuccessMessage"] = "OTP verified successfully! Please set your new password.";
+            return RedirectToAction(nameof(ResetPassword), new { token, email = user.Email });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResendResetOtp(string? email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                TempData["ErrorMessage"] = "Please provide an email address.";
+                return RedirectToAction(nameof(ForgotPassword));
+            }
+
+            var cleanEmail = email.Trim().ToLowerInvariant();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == cleanEmail);
+
+            if (user != null)
+            {
+                // Generate fresh OTP
+                var otp = System.Security.Cryptography.RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+                user.PasswordResetOtp = otp;
+                user.PasswordResetOtpExpiry = DateTime.UtcNow.AddMinutes(15);
+                await _context.SaveChangesAsync();
+
+                await _emailService.SendPasswordResetOtpEmailAsync(user.Email, user.FullName, otp);
+            }
+
+            TempData["SuccessMessage"] = "A fresh 6-digit OTP has been sent. Please check your inbox and spam folder.";
+            return RedirectToAction(nameof(VerifyResetOtp), new { email = cleanEmail });
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+        public async Task<IActionResult> ResetPassword(string? token, string? email)
+        {
+            SetNoCacheHeaders();
+
+            if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                return RedirectAuthenticatedUser();
+            }
+
+            if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(email))
+            {
+                TempData["ErrorMessage"] = "Invalid password reset link. Please request a new one.";
+                return RedirectToAction(nameof(ForgotPassword));
+            }
+
+            var cleanEmail = email.Trim().ToLowerInvariant();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == cleanEmail);
+
+            if (user == null || user.PasswordResetToken != token)
+            {
+                TempData["ErrorMessage"] = "Invalid password reset link. Please request a new one.";
+                return RedirectToAction(nameof(ForgotPassword));
+            }
+
+            if (user.PasswordResetTokenExpiry.HasValue && user.PasswordResetTokenExpiry.Value < DateTime.UtcNow)
+            {
+                TempData["ErrorMessage"] = "This password reset link has expired. Please request a new one.";
+                return RedirectToAction(nameof(ForgotPassword));
+            }
+
+            var model = new ResetPasswordViewModel
+            {
+                Token = token,
+                Email = user.Email
+            };
+
+            return View(model);
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+        public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
+        {
+            SetNoCacheHeaders();
+
+            if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                return RedirectAuthenticatedUser();
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+
+            var cleanEmail = model.Email.Trim().ToLowerInvariant();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == cleanEmail);
+
+            if (user == null || user.PasswordResetToken != model.Token)
+            {
+                ModelState.AddModelError(string.Empty, "Invalid password reset token. Please request a new reset link.");
+                return View(model);
+            }
+
+            if (user.PasswordResetTokenExpiry.HasValue && user.PasswordResetTokenExpiry.Value < DateTime.UtcNow)
+            {
+                ModelState.AddModelError(string.Empty, "This password reset link has expired. Please request a new one.");
+                return View(model);
+            }
+
+            // Update password
+            user.PasswordHash = _passwordHasher.HashPassword(user, model.Password);
+            user.PasswordResetToken = null;
+            user.PasswordResetTokenExpiry = null;
+            user.PasswordResetOtp = null;
+            user.PasswordResetOtpExpiry = null;
+            user.FailedLoginAttempts = 0;
+            await _context.SaveChangesAsync();
+
+            TempData["SuccessMessage"] = "Your password has been reset successfully! You can now sign in with your new password.";
+            return RedirectToAction(nameof(Login));
         }
 
         [HttpGet]
@@ -334,6 +883,20 @@ namespace Onudhabon_ISD.Controllers
             Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0";
             Response.Headers["Pragma"] = "no-cache";
             Response.Headers["Expires"] = "-1";
+        }
+
+        private static string GenerateVerificationToken()
+        {
+            var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            var random = new Random();
+            var result = new System.Text.StringBuilder();
+
+            for (int i = 0; i < 64; i++)
+            {
+                result.Append(chars[random.Next(chars.Length)]);
+            }
+
+            return result.ToString();
         }
     }
 }

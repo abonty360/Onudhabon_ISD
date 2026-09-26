@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -12,12 +14,22 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add Database Context
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
     options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection")));
+        builder.Configuration.GetConnectionString("DefaultConnection"));
+    options.ConfigureWarnings(warnings =>
+        warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+});
 
 // Cloudinary & Storage Services
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<IVolunteerRankingService, VolunteerRankingService>();
+
+// Email Service (Gmail SMTP)
+builder.Services.AddScoped<IEmailService, EmailService>();
+
+// Payment Gateway Services (Sandbox & Production)
+builder.Services.AddScoped<ISSLCommerzService, SSLCommerzService>();
 
 // HttpClient and Memory Cache
 builder.Services.AddHttpClient();
@@ -42,6 +54,41 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.SlidingExpiration = true;                 // Resets expiration window on user activity
         options.LoginPath = "/Account/Login";
         options.AccessDeniedPath = "/Account/AccessDenied";
+        options.Events = new CookieAuthenticationEvents
+        {
+            OnValidatePrincipal = async context =>
+            {
+                var userPrincipal = context.Principal;
+                var userIdStr = userPrincipal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!int.TryParse(userIdStr, out int userId))
+                {
+                    return;
+                }
+
+                var dbContext = context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+                var user = await dbContext.Users.FindAsync(userId);
+                if (user == null || user.IsRestricted || string.Equals(user.VerificationStatus, "Declined", StringComparison.OrdinalIgnoreCase))
+                {
+                    context.RejectPrincipal();
+                    await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                    return;
+                }
+
+                if (!string.Equals(user.Role, "Admin", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool isApproved = user.IsVerified ||
+                        string.Equals(user.VerificationStatus, "Active", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(user.VerificationStatus, "Approved", StringComparison.OrdinalIgnoreCase);
+
+                    if (!isApproved)
+                    {
+                        context.RejectPrincipal();
+                        await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                        return;
+                    }
+                }
+            }
+        };
     });
 
 // Session State Services (for HttpContext.Session)
@@ -56,7 +103,19 @@ builder.Services.AddSession(options =>
 });
 
 // Add MVC Services
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews()
+    .AddRazorRuntimeCompilation();
+
+// Add CORS for Gateway Callbacks
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
 
 var app = builder.Build();
 
@@ -68,6 +127,18 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 app.UseRouting();
+
+app.UseCors();
+
+// Private Network Access (PNA) header support for gateway callbacks from public HTTPS to localhost
+app.Use(async (context, next) =>
+{
+    if (context.Request.Headers.ContainsKey("Access-Control-Request-Private-Network"))
+    {
+        context.Response.Headers["Access-Control-Allow-Private-Network"] = "true";
+    }
+    await next();
+});
 
 app.UseAuthentication();
 app.UseAuthorization();

@@ -95,6 +95,8 @@ namespace Onudhabon_ISD.Controllers
             user.VerificationStatus = "Active";
             user.IsVerified = true;
             user.IsRestricted = false;
+            user.FailedLoginAttempts = 0;
+            user.RestrictionReason = null;
 
             if (!string.IsNullOrWhiteSpace(user.FullName))
             {
@@ -142,6 +144,16 @@ namespace Onudhabon_ISD.Controllers
             if (user == null) return NotFound();
 
             user.IsRestricted = !user.IsRestricted;
+            if (!user.IsRestricted)
+            {
+                user.FailedLoginAttempts = 0;
+                user.RestrictionReason = null;
+            }
+            else
+            {
+                user.RestrictionReason = "Restricted manually by administrator.";
+            }
+
             await _context.SaveChangesAsync();
 
             TempData["SuccessMessage"] = $"User '{user.FullName}' restriction updated. Account is now {(user.IsRestricted ? "RESTRICTED (Blocked from login)" : "UNRESTRICTED (Active)")}.";
@@ -368,6 +380,7 @@ namespace Onudhabon_ISD.Controllers
             }
 
             user.IsRestricted = true;
+            user.RestrictionReason = "Restricted manually by administrator from content moderation.";
             await _context.SaveChangesAsync();
 
             TempData["SuccessMessage"] = $"User '{user.FullName}' ({user.Email}) has been restricted and blocked from logging in.";

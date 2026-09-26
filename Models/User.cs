@@ -66,8 +66,56 @@ namespace Onudhabon_ISD.Models
         [Display(Name = "Is Restricted")]
         public bool IsRestricted { get; set; } = false;
 
+        [Display(Name = "Failed Login Attempts")]
+        public int FailedLoginAttempts { get; set; } = 0;
+
+        [MaxLength(255)]
+        [Display(Name = "Restriction Reason")]
+        public string? RestrictionReason { get; set; }
+
+        [Display(Name = "Last Failed Login")]
+        public DateTime? LastFailedLoginAt { get; set; }
+
         [Display(Name = "Is Verified")]
         public bool IsVerified { get; set; } = false;
+
+        [Display(Name = "Is Email Verified")]
+        public bool IsEmailVerified { get; set; } = false;
+
+        [Display(Name = "Email Confirmed")]
+        public bool EmailConfirmed
+        {
+            get => IsEmailVerified;
+            set => IsEmailVerified = value;
+        }
+
+        [MaxLength(500)]
+        [Display(Name = "Email Verification Token")]
+        public string? EmailVerificationToken { get; set; }
+
+        [Display(Name = "Email Verification Token Expiry")]
+        public DateTime? EmailVerificationTokenExpiry { get; set; }
+
+        [MaxLength(10)]
+        [Display(Name = "Email OTP")]
+        public string? EmailOtp { get; set; }
+
+        [Display(Name = "Email OTP Expiry")]
+        public DateTime? EmailOtpExpiry { get; set; }
+
+        [MaxLength(100)]
+        [Display(Name = "Password Reset Token")]
+        public string? PasswordResetToken { get; set; }
+
+        [Display(Name = "Password Reset Token Expiry")]
+        public DateTime? PasswordResetTokenExpiry { get; set; }
+
+        [MaxLength(10)]
+        [Display(Name = "Password Reset OTP")]
+        public string? PasswordResetOtp { get; set; }
+
+        [Display(Name = "Password Reset OTP Expiry")]
+        public DateTime? PasswordResetOtpExpiry { get; set; }
 
         [MaxLength(50)]
         [Display(Name = "Verification Status")]

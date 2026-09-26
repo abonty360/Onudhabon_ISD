@@ -52,7 +52,8 @@
 
                         <div class="col-md-4">
                             <label asp-for="Subject" class="form-label fw-semibold">Subject *</label>
-                            <input asp-for="Subject" class="form-control rounded-3" placeholder="e.g. Physics, Bangla..." />
+                            <input asp-for="Subject" class="form-control rounded-3" id="subjectInput" list="subjectOptions" placeholder="e.g. Physics, Bangla..." />
+                            <datalist id="subjectOptions"></datalist>
                             <span asp-validation-for="Subject" class="text-danger small"></span>
                         </div>
 
@@ -94,9 +95,10 @@
 
                     <!-- Document File Upload (Cloudinary) -->
                     <div class="mb-4">
-                        <label asp-for="MaterialFile" class="form-label fw-semibold">Select Document File (PDF, DOCX, PPTX) *</label>
-                        <input asp-for="MaterialFile" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" class="form-control form-control-lg rounded-3" />
-                        <span class="text-muted small d-block mt-1">Uploaded directly to <code>onudhabon/materials</code>. File size in MB will be saved automatically.</span>
+                        <label asp-for="MaterialFile" class="form-label fw-semibold">Select Document File (.pdf, .docx, .doc, .pptx, .ppt) *</label>
+                        <input asp-for="MaterialFile" type="file" id="materialFileInput" accept=".pdf,.doc,.docx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation" class="form-control form-control-lg rounded-3" />
+                        <span class="text-muted small d-block mt-1">Allowed formats: PDF, DOCX, DOC, PPTX, PPT. Uploaded to <code>onudhabon/materials</code>.</span>
+                        <div id="materialFileError" class="text-danger small mt-1 fw-medium" style="display: none;"></div>
                         <span asp-validation-for="MaterialFile" class="text-danger small"></span>
                     </div>
 
@@ -111,4 +113,100 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const materialInput = document.getElementById('materialFileInput');
+            const errorDiv = document.getElementById('materialFileError');
+            const allowedExtensions = ['.pdf', '.doc', '.docx', '.ppt', '.pptx'];
+            const dangerousExtensions = ['.exe', '.bat', '.cmd', '.sh', '.vbs', '.js', '.msi', '.scr', '.jar', '.ps1', '.apk', '.com', '.pif', '.dll', '.bin', '.iso', '.wsf'];
+
+            if (materialInput) {
+                materialInput.addEventListener('change', function () {
+                    validateMaterialFile();
+                });
+
+                const form = materialInput.closest('form');
+                if (form) {
+                    form.addEventListener('submit', function (e) {
+                        if (!validateMaterialFile()) {
+                            e.preventDefault();
+                            materialInput.focus();
+                        }
+                    });
+                }
+            }
+
+            function validateMaterialFile() {
+                if (!materialInput.files || materialInput.files.length === 0) {
+                    return true;
+                }
+
+                const file = materialInput.files[0];
+                const fileName = file.name.toLowerCase();
+                const lastDot = fileName.lastIndexOf('.');
+
+                if (lastDot === -1) {
+                    showError('Please upload a valid document file with an extension (.pdf, .docx, .doc, .pptx, .ppt).');
+                    materialInput.value = '';
+                    return false;
+                }
+
+                const ext = fileName.substring(lastDot);
+
+                if (dangerousExtensions.includes(ext)) {
+                    showError(`Security Alert: Executable/script files (${ext}) are strictly prohibited. Please select an allowed document file (.pdf, .docx, .doc, .pptx, .ppt).`);
+                    materialInput.value = '';
+                    return false;
+                }
+
+                if (!allowedExtensions.includes(ext)) {
+                    showError(`Invalid file format '${ext}'. Only document files (.pdf, .docx, .doc, .pptx, .ppt) are allowed.`);
+                    materialInput.value = '';
+                    return false;
+                }
+
+                clearError();
+                return true;
+            }
+
+            function showError(msg) {
+                if (errorDiv) {
+                    errorDiv.textContent = msg;
+                    errorDiv.style.display = 'block';
+                }
+            }
+
+            function clearError() {
+                if (errorDiv) {
+                    errorDiv.textContent = '';
+                    errorDiv.style.display = 'none';
+                }
+            }
+
+            // ClassPlan subjects autocomplete
+            const classPlansData = @Html.Raw(ViewBag.ClassPlansJson ?? "[]");
+            const classSelect = document.querySelector('select[name="ClassLevel"]');
+            const subjectDatalist = document.getElementById('subjectOptions');
+
+            function updateUploadSubjects() {
+                if (!classSelect || !subjectDatalist) return;
+                const selectedClass = classSelect.value.trim().replace(/[^0-9]/g, '');
+                subjectDatalist.innerHTML = '';
+                
+                const plan = classPlansData.find(p => p.classLevel === selectedClass);
+                if (plan && plan.subjects) {
+                    plan.subjects.forEach(sub => {
+                        const opt = document.createElement('option');
+                        opt.value = sub;
+                        subjectDatalist.appendChild(opt);
+                    });
+                }
+            }
+
+            if (classSelect) {
+                classSelect.addEventListener('change', updateUploadSubjects);
+                updateUploadSubjects();
+            }
+        });
+    </script>
 }
