@@ -52,6 +52,10 @@ namespace Onudhabon_ISD.Data
                 entity.Property(e => e.EmailVerificationTokenExpiry);
                 entity.Property(e => e.EmailOtp).HasMaxLength(10);
                 entity.Property(e => e.EmailOtpExpiry);
+                entity.Property(e => e.PasswordResetToken).HasMaxLength(100);
+                entity.Property(e => e.PasswordResetTokenExpiry);
+                entity.Property(e => e.PasswordResetOtp).HasMaxLength(10);
+                entity.Property(e => e.PasswordResetOtpExpiry);
                 entity.Ignore(e => e.EmailConfirmed);
                 entity.Property(e => e.NidNumber).HasMaxLength(50);
                 entity.Property(e => e.CertificatePicture).HasMaxLength(500);

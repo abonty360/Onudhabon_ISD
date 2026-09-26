@@ -21,5 +21,15 @@ namespace Onudhabon_ISD.Services
         /// Sends a general email message.
         /// </summary>
         Task<bool> SendEmailAsync(string toEmail, string subject, string htmlBody);
+
+        /// <summary>
+        /// Sends a password reset email with a direct link.
+        /// </summary>
+        Task<bool> SendPasswordResetEmailAsync(string toEmail, string recipientName, string resetUrl);
+
+        /// <summary>
+        /// Sends a 6-digit OTP code to reset password.
+        /// </summary>
+        Task<bool> SendPasswordResetOtpEmailAsync(string toEmail, string recipientName, string otp);
     }
 }
