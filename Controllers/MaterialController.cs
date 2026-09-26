@@ -235,7 +235,15 @@ namespace Onudhabon_ISD.Controllers
 
             if (model.MaterialFile == null || model.MaterialFile.Length == 0)
             {
-                ModelState.AddModelError(nameof(model.MaterialFile), "Please select a material document file (PDF/DOCX) to upload.");
+                ModelState.AddModelError(nameof(model.MaterialFile), "Please select a material document file (.pdf, .docx, .doc, .pptx, .ppt) to upload.");
+                return View(model);
+            }
+
+            var allowedExtensions = new[] { ".pdf", ".docx", ".doc", ".pptx", ".ppt" };
+            var fileExt = Path.GetExtension(model.MaterialFile.FileName).ToLowerInvariant();
+            if (string.IsNullOrEmpty(fileExt) || !allowedExtensions.Contains(fileExt))
+            {
+                ModelState.AddModelError(nameof(model.MaterialFile), "Invalid file type. Only document files (.pdf, .docx, .doc, .pptx, .ppt) are allowed.");
                 return View(model);
             }
 

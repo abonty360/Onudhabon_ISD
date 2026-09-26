@@ -252,6 +252,14 @@ namespace Onudhabon_ISD.Controllers
                 return View(model);
             }
 
+            var allowedExtensions = new[] { ".mp4", ".webm", ".mkv", ".mov" };
+            var fileExt = Path.GetExtension(model.VideoFile.FileName).ToLowerInvariant();
+            if (string.IsNullOrEmpty(fileExt) || !allowedExtensions.Contains(fileExt))
+            {
+                ModelState.AddModelError(nameof(model.VideoFile), "Invalid file type. Only video files (.mp4, .webm, .mkv, .mov) are allowed.");
+                return View(model);
+            }
+
             var uploadResult = await _cloudinaryService.UploadLectureVideoAsync(model.VideoFile);
 
             if (!uploadResult.Success)

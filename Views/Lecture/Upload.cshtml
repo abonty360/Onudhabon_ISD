@@ -94,9 +94,10 @@
 
                     <!-- Video File Upload (Cloudinary) -->
                     <div class="mb-4">
-                        <label asp-for="VideoFile" class="form-label fw-semibold">Select Video File (MP4, MKV, WebM) *</label>
-                        <input asp-for="VideoFile" type="file" accept="video/*" class="form-control form-control-lg rounded-3" />
-                        <span class="text-muted small d-block mt-1">Eager 300x200 crop-fill thumbnail will be generated automatically upon upload.</span>
+                        <label asp-for="VideoFile" class="form-label fw-semibold">Select Video File (.mp4, .webm, .mkv, .mov) *</label>
+                        <input asp-for="VideoFile" type="file" id="videoFileInput" accept=".mp4,.webm,.mkv,.mov,video/mp4,video/webm,video/x-matroska,video/quicktime" class="form-control form-control-lg rounded-3" />
+                        <span class="text-muted small d-block mt-1">Allowed formats: MP4, WebM, MKV, MOV. Eager 300x200 thumbnail will be generated automatically.</span>
+                        <div id="videoFileError" class="text-danger small mt-1 fw-medium" style="display: none;"></div>
                         <span asp-validation-for="VideoFile" class="text-danger small"></span>
                     </div>
 
@@ -111,4 +112,75 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const videoInput = document.getElementById('videoFileInput');
+            const errorDiv = document.getElementById('videoFileError');
+            const allowedExtensions = ['.mp4', '.webm', '.mkv', '.mov'];
+            const dangerousExtensions = ['.exe', '.bat', '.cmd', '.sh', '.vbs', '.js', '.msi', '.scr', '.jar', '.ps1', '.apk', '.com', '.pif', '.dll', '.bin', '.iso', '.wsf'];
+
+            if (videoInput) {
+                videoInput.addEventListener('change', function () {
+                    validateVideoFile();
+                });
+
+                const form = videoInput.closest('form');
+                if (form) {
+                    form.addEventListener('submit', function (e) {
+                        if (!validateVideoFile()) {
+                            e.preventDefault();
+                            videoInput.focus();
+                        }
+                    });
+                }
+            }
+
+            function validateVideoFile() {
+                if (!videoInput.files || videoInput.files.length === 0) {
+                    return true;
+                }
+
+                const file = videoInput.files[0];
+                const fileName = file.name.toLowerCase();
+                const lastDot = fileName.lastIndexOf('.');
+
+                if (lastDot === -1) {
+                    showError('Please upload a valid video file with an extension (.mp4, .webm, .mkv, .mov).');
+                    videoInput.value = '';
+                    return false;
+                }
+
+                const ext = fileName.substring(lastDot);
+
+                if (dangerousExtensions.includes(ext)) {
+                    showError(`Security Alert: Executable/script files (${ext}) are strictly prohibited. Please select an allowed video file (.mp4, .webm, .mkv, .mov).`);
+                    videoInput.value = '';
+                    return false;
+                }
+
+                if (!allowedExtensions.includes(ext)) {
+                    showError(`Invalid file format '${ext}'. Only video files (.mp4, .webm, .mkv, .mov) are allowed.`);
+                    videoInput.value = '';
+                    return false;
+                }
+
+                clearError();
+                return true;
+            }
+
+            function showError(msg) {
+                if (errorDiv) {
+                    errorDiv.textContent = msg;
+                    errorDiv.style.display = 'block';
+                }
+            }
+
+            function clearError() {
+                if (errorDiv) {
+                    errorDiv.textContent = '';
+                    errorDiv.style.display = 'none';
+                }
+            }
+        });
+    </script>
 }
