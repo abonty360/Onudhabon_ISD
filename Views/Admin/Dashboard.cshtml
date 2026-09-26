@@ -479,11 +479,42 @@
                                         <td>
                                             @if (user.IsRestricted)
                                             {
-                                                <span class="badge bg-danger rounded-pill px-2.5">Restricted</span>
+                                                <div class="d-flex flex-column gap-1 align-items-start">
+                                                    <span class="badge bg-danger rounded-pill px-2.5 d-inline-flex align-items-center gap-1">
+                                                        <i class="bi bi-lock-fill"></i> Restricted
+                                                    </span>
+                                                    @if (user.FailedLoginAttempts >= 5)
+                                                    {
+                                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill small" title="@user.RestrictionReason">
+                                                            @user.FailedLoginAttempts / 5 Failed (Locked)
+                                                        </span>
+                                                    }
+                                                    else if (!string.IsNullOrEmpty(user.RestrictionReason))
+                                                    {
+                                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill small" title="@user.RestrictionReason">
+                                                            Manual
+                                                        </span>
+                                                    }
+                                                </div>
                                             }
                                             else
                                             {
-                                                <span class="badge bg-light text-muted border rounded-pill">No</span>
+                                                @if (user.FailedLoginAttempts >= 3)
+                                                {
+                                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-2.5 d-inline-flex align-items-center gap-1" title="Warning: @user.FailedLoginAttempts failed login attempts.">
+                                                        <i class="bi bi-exclamation-triangle-fill"></i> @user.FailedLoginAttempts / 5 Failed
+                                                    </span>
+                                                }
+                                                else if (user.FailedLoginAttempts > 0)
+                                                {
+                                                    <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-2" title="@user.FailedLoginAttempts failed login attempts.">
+                                                        @user.FailedLoginAttempts / 5 Failed
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-light text-muted border rounded-pill">No</span>
+                                                }
                                             }
                                         </td>
                                         <td class="small text-muted">@user.CreatedAt.ToString("MMM dd, yyyy")</td>
@@ -554,7 +585,15 @@
                                                             <span class="badge @(user.VerificationStatus == "Active" ? "bg-success-subtle text-success" : "bg-warning-subtle text-warning") rounded-pill">Status: @(user.VerificationStatus ?? "Pending")</span>
                                                             @if (user.IsRestricted)
                                                             {
-                                                                <span class="badge bg-danger rounded-pill ms-1">RESTRICTED</span>
+                                                                <span class="badge bg-danger rounded-pill ms-1 d-inline-flex align-items-center gap-1">
+                                                                    <i class="bi bi-lock-fill"></i> RESTRICTED / LOCKED
+                                                                </span>
+                                                            }
+                                                            else if (user.FailedLoginAttempts >= 3)
+                                                            {
+                                                                <span class="badge bg-warning text-dark rounded-pill ms-1 d-inline-flex align-items-center gap-1">
+                                                                    <i class="bi bi-exclamation-triangle-fill"></i> @user.FailedLoginAttempts FAILED ATTEMPTS
+                                                                </span>
                                                             }
                                                         </div>
                                                     </div>
@@ -585,6 +624,48 @@
                                                         <div class="col-sm-6">
                                                             <div class="text-muted">Registration Date:</div>
                                                             <div class="fw-semibold text-dark">@user.CreatedAt.ToString("f")</div>
+                                                        </div>
+
+                                                        <!-- Account Security & Login Activity Section -->
+                                                        <div class="col-12 border-top pt-2 mt-2">
+                                                            <h6 class="fw-bold text-dark mb-2 d-flex align-items-center gap-1.5">
+                                                                <i class="bi bi-shield-lock text-primary"></i> Account Security & Login Activity
+                                                            </h6>
+                                                            <div class="row g-2">
+                                                                <div class="col-sm-4">
+                                                                    <div class="p-2.5 rounded-3 @(user.IsRestricted ? "bg-danger-subtle border border-danger-subtle" : (user.FailedLoginAttempts >= 3 ? "bg-warning-subtle border border-warning-subtle" : "bg-light border"))">
+                                                                        <div class="text-muted small">Failed Password Attempts:</div>
+                                                                        <div class="fw-bold fs-6 @(user.IsRestricted ? "text-danger" : (user.FailedLoginAttempts >= 3 ? "text-warning-emphasis" : "text-dark"))">
+                                                                            @user.FailedLoginAttempts / 5 attempts
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="col-sm-4">
+                                                                    <div class="p-2.5 rounded-3 bg-light border">
+                                                                        <div class="text-muted small">Account Access:</div>
+                                                                        <div class="fw-bold fs-6 @(user.IsRestricted ? "text-danger" : "text-success")">
+                                                                            @(user.IsRestricted ? "Locked (Restricted)" : "Active (Allowed)")
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="col-sm-4">
+                                                                    <div class="p-2.5 rounded-3 bg-light border">
+                                                                        <div class="text-muted small">Last Failed Attempt:</div>
+                                                                        <div class="fw-bold fs-6 text-dark">
+                                                                            @(user.LastFailedLoginAt.HasValue ? user.LastFailedLoginAt.Value.ToString("MMM dd, yyyy HH:mm") : "None recorded")
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                @if (!string.IsNullOrWhiteSpace(user.RestrictionReason))
+                                                                {
+                                                                    <div class="col-12">
+                                                                        <div class="p-2.5 rounded-3 bg-danger-subtle text-danger border border-danger-subtle small d-flex align-items-center gap-1.5">
+                                                                            <i class="bi bi-exclamation-octagon-fill fs-6"></i>
+                                                                            <div><strong>Lockout / Restriction Reason:</strong> @user.RestrictionReason</div>
+                                                                        </div>
+                                                                    </div>
+                                                                }
+                                                            </div>
                                                         </div>
 
                                                         <div class="col-12 border-top pt-2 mt-2">

@@ -66,6 +66,16 @@ namespace Onudhabon_ISD.Models
         [Display(Name = "Is Restricted")]
         public bool IsRestricted { get; set; } = false;
 
+        [Display(Name = "Failed Login Attempts")]
+        public int FailedLoginAttempts { get; set; } = 0;
+
+        [MaxLength(255)]
+        [Display(Name = "Restriction Reason")]
+        public string? RestrictionReason { get; set; }
+
+        [Display(Name = "Last Failed Login")]
+        public DateTime? LastFailedLoginAt { get; set; }
+
         [Display(Name = "Is Verified")]
         public bool IsVerified { get; set; } = false;
 

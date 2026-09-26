@@ -79,22 +79,56 @@ namespace Onudhabon_ISD.Controllers
                 return View(model);
             }
 
-            // Verify password hash
-            var verificationResult = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, model.Password);
-            if (verificationResult == PasswordVerificationResult.Failed)
-            {
-                ModelState.AddModelError(string.Empty, "Invalid login credentials. Please check your password.");
-                return View(model);
-            }
-
-            // Check if user account has been restricted by Admin
+            // 1. Check if user account has already been restricted / locked
             if (user.IsRestricted)
             {
                 ViewBag.RestrictedModal = true;
-                ViewBag.ModalTitle = "Account Restricted";
-                ViewBag.ModalMessage = "Your account has been restricted by the administrator. You are currently blocked from logging in. Please contact the administrator or support if you need assistance.";
-                ModelState.AddModelError(string.Empty, "Your account has been restricted. You are blocked from logging in.");
+                ViewBag.ModalTitle = "Account Locked";
+                ViewBag.ModalMessage = "Your account has been locked for security purposes, contact admin (admin@example.com) for details.";
+                ModelState.AddModelError(string.Empty, "Your account has been locked for security purposes, contact admin (admin@example.com) for details.");
                 return View(model);
+            }
+
+            // 2. Verify password hash
+            var verificationResult = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, model.Password);
+            if (verificationResult == PasswordVerificationResult.Failed)
+            {
+                user.FailedLoginAttempts++;
+                user.LastFailedLoginAt = DateTime.UtcNow;
+
+                if (user.FailedLoginAttempts >= 5)
+                {
+                    user.IsRestricted = true;
+                    user.RestrictionReason = "Locked automatically due to 5 consecutive failed login attempts.";
+                    await _context.SaveChangesAsync();
+
+                    ViewBag.RestrictedModal = true;
+                    ViewBag.ModalTitle = "Account Locked";
+                    ViewBag.ModalMessage = "Your account has been locked for security purposes, contact admin (admin@example.com) for details.";
+                    ModelState.AddModelError(string.Empty, "Your account has been locked for security purposes, contact admin (admin@example.com) for details.");
+                    return View(model);
+                }
+                else if (user.FailedLoginAttempts >= 3)
+                {
+                    await _context.SaveChangesAsync();
+                    var remainingAttempts = 5 - user.FailedLoginAttempts;
+                    ModelState.AddModelError(string.Empty, $"Warning: You have entered an incorrect password {user.FailedLoginAttempts} times. After 5 failed attempts, your account will be locked for security purposes ({remainingAttempts} attempt{(remainingAttempts == 1 ? "" : "s")} remaining).");
+                    return View(model);
+                }
+                else
+                {
+                    await _context.SaveChangesAsync();
+                    ModelState.AddModelError(string.Empty, "Invalid login credentials. Please check your password.");
+                    return View(model);
+                }
+            }
+
+            // Reset failed login attempts on successful credentials match
+            if (user.FailedLoginAttempts > 0)
+            {
+                user.FailedLoginAttempts = 0;
+                user.RestrictionReason = null;
+                await _context.SaveChangesAsync();
             }
 
             // Check if volunteer verification status was declined by Admin
@@ -778,6 +812,7 @@ namespace Onudhabon_ISD.Controllers
             user.PasswordResetTokenExpiry = null;
             user.PasswordResetOtp = null;
             user.PasswordResetOtpExpiry = null;
+            user.FailedLoginAttempts = 0;
             await _context.SaveChangesAsync();
 
             TempData["SuccessMessage"] = "Your password has been reset successfully! You can now sign in with your new password.";

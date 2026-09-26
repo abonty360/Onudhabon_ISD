@@ -45,6 +45,9 @@ namespace Onudhabon_ISD.Data
                 entity.Property(e => e.Bio).HasMaxLength(1000);
                 entity.Property(e => e.Picture).HasMaxLength(500);
                 entity.Property(e => e.IsRestricted).HasDefaultValue(false);
+                entity.Property(e => e.FailedLoginAttempts).HasDefaultValue(0);
+                entity.Property(e => e.RestrictionReason).HasMaxLength(255);
+                entity.Property(e => e.LastFailedLoginAt);
                 entity.Property(e => e.IsVerified).HasDefaultValue(false);
                 entity.Property(e => e.VerificationStatus).HasMaxLength(50).HasDefaultValue("Pending");
                 entity.Property(e => e.IsEmailVerified).HasDefaultValue(false);
