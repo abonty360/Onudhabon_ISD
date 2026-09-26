@@ -14,12 +14,19 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add Database Context
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
     options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection")));
+        builder.Configuration.GetConnectionString("DefaultConnection"));
+    options.ConfigureWarnings(warnings =>
+        warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+});
 
 // Cloudinary & Storage Services
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<IVolunteerRankingService, VolunteerRankingService>();
+
+// Email Service (Gmail SMTP)
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 // Payment Gateway Services (Sandbox & Production)
 builder.Services.AddScoped<ISSLCommerzService, SSLCommerzService>();

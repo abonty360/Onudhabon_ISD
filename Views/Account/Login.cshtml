@@ -168,7 +168,16 @@
                             </svg>
                             <span>Browse Pages as Guest</span>
                         </a>
-                        <button type="button" class="btn btn-primary rounded-pill px-4 py-2" data-bs-dismiss="modal">Acknowledge & Close</button>
+                        @if (ViewBag.UnverifiedEmailModal == true && !string.IsNullOrEmpty(ViewBag.UnverifiedEmail as string))
+                        {
+                            <a asp-controller="Account" asp-action="VerifyOtp" asp-route-email="@ViewBag.UnverifiedEmail" class="btn btn-primary rounded-pill px-4 py-2 text-decoration-none">
+                                Enter OTP Code &rarr;
+                            </a>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn btn-primary rounded-pill px-4 py-2" data-bs-dismiss="modal">Acknowledge & Close</button>
+                        }
                     </div>
                 </div>
             </div>

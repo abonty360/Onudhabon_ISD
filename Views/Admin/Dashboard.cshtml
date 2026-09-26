@@ -295,7 +295,8 @@
                                     <th>Role</th>
                                     <th>Contributions & Activity</th>
                                     <th>Location</th>
-                                    <th>Verification</th>
+                                    <th>Email Status</th>
+                                    <th>Volunteer Status</th>
                                     <th>Restricted</th>
                                     <th>Joined</th>
                                     <th class="text-end">Actions</th>
@@ -442,6 +443,20 @@
                                             <div class="text-muted small">@user.Area</div>
                                         </td>
                                         <td>
+                                            @if (user.IsEmailVerified)
+                                            {
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1">
+                                                    <i class="bi bi-check-circle-fill"></i> Verified
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1">
+                                                    <i class="bi bi-x-circle-fill"></i> Unverified
+                                                </span>
+                                            }
+                                        </td>
+                                        <td>
                                             @if (user.VerificationStatus == "Active" || user.VerificationStatus == "Approved")
                                             {
                                                 <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1">
@@ -533,10 +548,13 @@
                                                         <div>
                                                             <h5 class="modal-title fw-bold text-dark mb-0" id="userModalLabel-@user.Id">@user.FullName</h5>
                                                             <span class="badge bg-secondary-subtle text-secondary rounded-pill me-1">@user.Role</span>
+                                                            <span class="badge @(user.IsEmailVerified ? "bg-success-subtle text-success" : "bg-danger-subtle text-danger") rounded-pill me-1">
+                                                                <i class="bi @(user.IsEmailVerified ? "bi-envelope-check-fill" : "bi-envelope-x-fill") me-1"></i>Email: @(user.IsEmailVerified ? "Verified" : "Unverified")
+                                                            </span>
                                                             <span class="badge @(user.VerificationStatus == "Active" ? "bg-success-subtle text-success" : "bg-warning-subtle text-warning") rounded-pill">Status: @(user.VerificationStatus ?? "Pending")</span>
                                                             @if (user.IsRestricted)
                                                             {
-                                                                <span class="badge bg-danger rounded-pill">RESTRICTED</span>
+                                                                <span class="badge bg-danger rounded-pill ms-1">RESTRICTED</span>
                                                             }
                                                         </div>
                                                     </div>
