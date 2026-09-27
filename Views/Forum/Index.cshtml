@@ -226,7 +226,7 @@
             <div class="modal-body px-4 pt-0">
                 <div class="d-flex justify-content-between align-items-end" style="margin-top: -48px;">
                     <img id="authorPreviewPicture" src="" alt="" class="rounded-circle border border-3 border-white shadow" style="width: 88px; height: 88px; object-fit: cover; display: none;" />
-                    <div id="authorPreviewFallback" class="rounded-circle border border-3 border-white shadow bg-primary-subtle text-primary fw-bold d-flex align-items-center justify-content-center" style="width: 88px; height: 88px; font-size: 2rem;">U</div>
+                    <div id="authorPreviewFallback" class="rounded-circle border border-3 border-white shadow bg-primary-subtle text-primary fw-bold d-flex align-items-center justify-content-center d-none" style="width: 88px; height: 88px; font-size: 2rem;">U</div>
                     <span id="authorPreviewRole" class="badge bg-success-subtle text-success border rounded-pill px-3 py-2 mb-1"></span>
                 </div>
                 <h5 id="authorPreviewName" class="fw-bold text-dark mt-3 mb-1"></h5>
@@ -327,7 +327,7 @@
             picture.alt = data.authorName || '';
             picture.src = data.authorPicture || '';
             picture.style.display = data.authorPicture ? 'block' : 'none';
-            fallback.style.display = data.authorPicture ? 'none' : 'flex';
+            fallback.classList.toggle('d-none', Boolean(data.authorPicture));
         });
 
         $(document).ready(function () {
