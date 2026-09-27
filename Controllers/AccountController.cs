@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -843,6 +844,93 @@ namespace Onudhabon_ISD.Controllers
             }
 
             return View(user);
+        }
+
+        [HttpPost]
+        [Authorize]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateProfilePicture(IFormFile? picture)
+        {
+            var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdValue, out var userId))
+            {
+                return Forbid();
+            }
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+            {
+                return NotFound();
+            }
+
+            if (picture == null || !await IsValidProfilePictureAsync(picture))
+            {
+                TempData["ErrorMessage"] = "Choose a JPG, PNG, or WebP image no larger than 5 MB.";
+                return RedirectToAction(nameof(Profile));
+            }
+
+            var extension = Path.GetExtension(picture.FileName).ToLowerInvariant();
+            await using var stream = picture.OpenReadStream();
+            var uploadFile = new FormFile(stream, 0, picture.Length, picture.Name,
+                $"profile-{user.Id}-{Guid.NewGuid():N}{extension}")
+            {
+                Headers = new HeaderDictionary(),
+                ContentType = picture.ContentType
+            };
+
+            var uploadResult = await _cloudinaryService.UploadProfilePictureAsync(uploadFile);
+            if (!uploadResult.Success || string.IsNullOrWhiteSpace(uploadResult.SecureUrl))
+            {
+                TempData["ErrorMessage"] = "The profile picture could not be uploaded. Please try again.";
+                return RedirectToAction(nameof(Profile));
+            }
+
+            user.Picture = uploadResult.SecureUrl;
+            await _context.SaveChangesAsync();
+
+            TempData["SuccessMessage"] = "Your profile picture has been updated.";
+            return RedirectToAction(nameof(Profile));
+        }
+
+        private static async Task<bool> IsValidProfilePictureAsync(IFormFile file)
+        {
+            const long maxFileSize = 5 * 1024 * 1024;
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            var expectedContentType = extension switch
+            {
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".webp" => "image/webp",
+                _ => null
+            };
+
+            if (file.Length == 0 || file.Length > maxFileSize ||
+                expectedContentType == null ||
+                !string.Equals(file.ContentType, expectedContentType, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var header = new byte[12];
+            await using var stream = file.OpenReadStream();
+            var bytesRead = 0;
+            while (bytesRead < header.Length)
+            {
+                var count = await stream.ReadAsync(header.AsMemory(bytesRead));
+                if (count == 0)
+                {
+                    break;
+                }
+                bytesRead += count;
+            }
+
+            return extension switch
+            {
+                ".jpg" or ".jpeg" => bytesRead >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF,
+                ".png" => bytesRead >= 8 && header.AsSpan(0, 8).SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }),
+                ".webp" => bytesRead >= 12 && header.AsSpan(0, 4).SequenceEqual("RIFF"u8) && header.AsSpan(8, 4).SequenceEqual("WEBP"u8),
+                _ => false
+            };
         }
 
         [HttpPost]
