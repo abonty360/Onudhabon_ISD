@@ -1,0 +1,532 @@
+@model IEnumerable<Onudhabon_ISD.Models.Lecture>
+@inject Onudhabon_ISD.Services.ICloudinaryService CloudinaryService
+
+@{
+    ViewData["Title"] = "Recorded Video Lectures - Onudhabon";
+
+    var classPlans = ViewBag.ClassPlans as List<Onudhabon_ISD.Models.ClassPlan>;
+    var allSubjects = ViewBag.AllSubjects as List<string> ?? new List<string>();
+
+    var topics = Model
+        .Where(l => !string.IsNullOrWhiteSpace(l.Topic))
+        .Select(l => l.Topic!)
+        .Distinct()
+        .OrderBy(x => x)
+        .ToList();
+}
+
+<div class="lecture-page">
+    <section class="lecture-hero">
+        <div class="lecture-hero-overlay"></div>
+        <div class="lecture-hero-content">
+            <div class="hero-label">Home/Lectures</div>
+            <h1>Inspiring Minds, One Lecture at a Time</h1>
+            <p>
+                Dive into a world of knowledge where passionate educators and volunteers share their expertise.
+                Our lectures are designed to spark curiosity, build skills, and empower learners to reach their full potential — no matter where they are.
+            </p>
+        </div>
+    </section>
+
+    <div class="lecture-inner">
+        <h2 class="lecture-title">Video Lectures</h2>
+
+        @if (User.Identity != null && User.Identity.IsAuthenticated && (User.IsInRole("Educator") || User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value == "Educator"))
+        {
+            <div class="lecture-actions">
+                <a asp-action="Upload" class="upload-btn">Upload Lecture</a>
+            </div>
+        }
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4 mt-2" role="alert">
+                @TempData["SuccessMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-4 mt-2" role="alert">
+                @TempData["ErrorMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+
+        <form method="get" asp-action="Index" class="lecture-filters" id="lectureFilters">
+            <div class="filter-field search-field">
+                <label for="search">Search</label>
+                <input id="search" name="search" type="text" placeholder="Search lectures, instructors, or topics" value="@(ViewBag.Search ?? Context.Request.Query["search"])" />
+            </div>
+
+            <div class="filter-field">
+                <label for="classLevel">Class</label>
+                <select id="classLevel" name="classLevel">
+                    <option value="">All Classes</option>
+                    @if (classPlans != null)
+                    {
+                        @foreach (var plan in classPlans)
+                        {
+                            var norm = Onudhabon_ISD.Data.ClassPlanHelper.NormalizeClassLevel(plan.ClassLevel);
+                            var isSel = (ViewBag.ClassLevel == norm || ViewBag.ClassLevel == plan.ClassLevel || Context.Request.Query["classLevel"] == norm);
+                            <option value="@norm" selected="@isSel">Class @norm</option>
+                        }
+                    }
+                    else
+                    {
+                        @for (int i = 1; i <= 12; i++)
+                        {
+                            <option value="@i" selected="@(Context.Request.Query["classLevel"] == i.ToString())">Class @i</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <div class="filter-field">
+                <label for="subject">Subject</label>
+                <select id="subject" name="subject">
+                    <option value="">All Subjects</option>
+                    @foreach (var item in allSubjects)
+                    {
+                        <option value="@item" selected="@(ViewBag.Subject == item || Context.Request.Query["subject"] == item)">
+                            @item
+                        </option>
+                    }
+                </select>
+            </div>
+
+            <div class="filter-field">
+                <label for="topic">Topic</label>
+                <select id="topic" name="topic">
+                    <option value="">All Topics</option>
+                    @foreach (var item in topics)
+                    {
+                        <option value="@item" selected="@(ViewBag.Topic == item || Context.Request.Query["topic"] == item)">
+                            @item
+                        </option>
+                    }
+                </select>
+            </div>
+
+            <div class="filter-field">
+                <label for="version">Version</label>
+                <select id="version" name="version">
+                    <option value="">Both Versions</option>
+                    <option value="Bangla" selected="@(ViewBag.Version == "Bangla" || Context.Request.Query["version"] == "Bangla")">Bangla</option>
+                    <option value="English" selected="@(ViewBag.Version == "English" || Context.Request.Query["version"] == "English")">English</option>
+                </select>
+            </div>
+
+            <div class="filter-field filter-actions-field">
+                <label class="invisible" aria-hidden="true">&nbsp;</label>
+                <button type="button" class="btn btn-outline-secondary btn-clear-filter d-inline-flex align-items-center justify-content-center gap-1 w-100" id="clearLectureFiltersBtn" title="Clear search and filters">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                    <span>Clear</span>
+                </button>
+            </div>
+        </form>
+
+        @if (!Model.Any())
+        {
+            <div class="no-lectures">
+                <p>No lectures available for this filter.</p>
+            </div>
+        }
+        else
+        {
+            <div class="lecture-grid" id="lectureGrid">
+                @foreach (var lecture in Model)
+                {
+                    var isPending = string.Equals(lecture.Status, "pending", StringComparison.OrdinalIgnoreCase);
+                    var isDeclined = string.Equals(lecture.Status, "declined", StringComparison.OrdinalIgnoreCase);
+                    var isOwner = (User.Identity != null && User.Identity.IsAuthenticated) && !string.IsNullOrWhiteSpace(lecture.Instructor) && (
+                        string.Equals(lecture.Instructor.Trim(), User.Identity?.Name, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(lecture.Instructor.Trim(), User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value, StringComparison.OrdinalIgnoreCase)
+                    );
+                    var isAdmin = (User.Identity != null && User.Identity.IsAuthenticated) && (User.IsInRole("Admin") || User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value == "Admin");
+                    var showStatus = isAdmin || isOwner || isPending || isDeclined;
+
+                    <article class="lecture-card"
+                             data-title="@lecture.Title"
+                             data-instructor="@lecture.Instructor"
+                             data-class="@lecture.ClassLevel"
+                             data-subject="@lecture.Subject"
+                             data-topic="@lecture.Topic"
+                             data-version="@lecture.Version">
+                        <a asp-action="Details" asp-route-id="@lecture.Id" class="text-decoration-none text-dark d-block">
+                            <div class="video-frame">
+                                @if (!string.IsNullOrWhiteSpace(lecture.VideoUrl))
+                                {
+                                    <video class="lecture-video-preview"
+                                           preload="metadata"
+                                           muted
+                                           playsinline
+                                           disablepictureinpicture
+                                           src="@(lecture.VideoUrl)#t=0.5">
+                                    </video>
+                                }
+                                else
+                                {
+                                    <div class="d-flex align-items-center justify-content-center h-100 text-muted bg-dark">
+                                        <span>No Video</span>
+                                    </div>
+                                }
+                                <div class="video-overlay">
+                                    <span class="play-icon d-inline-flex align-items-center justify-content-center">
+                                        <i class="bi bi-play-fill fs-5"></i>
+                                    </span>
+                                    <span class="time-label" style="display: none;">0:00</span>
+                                </div>
+                            </div>
+
+                            <div class="lecture-card-body">
+                                <div class="meta-row d-flex align-items-center flex-wrap gap-1">
+                                    <span class="grade-pill">Class @lecture.ClassLevel</span>
+                                    <span class="subject-pill">@lecture.Subject</span>
+                                    @if (showStatus)
+                                    {
+                                        <span class="lecture-status @(isPending ? "pending" : (isDeclined ? "declined" : "active")) ms-auto d-inline-flex align-items-center gap-1">
+                                            @if (isPending)
+                                            {
+                                                <i class="bi bi-clock-history"></i>
+                                                <span>Pending Approval</span>
+                                            }
+                                            else if (isDeclined)
+                                            {
+                                                <i class="bi bi-x-circle-fill"></i>
+                                                <span>Declined</span>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-check-circle-fill"></i>
+                                                <span>Active</span>
+                                            }
+                                        </span>
+                                    }
+                                </div>
+
+                                <h3>@lecture.Title</h3>
+                                <p>@(string.IsNullOrWhiteSpace(lecture.Description) ? "Recorded video lecture for students." : lecture.Description)</p>
+                                <div class="author-row d-inline-flex align-items-center gap-1.5 text-muted small">
+                                    <i class="bi bi-person-video3"></i>
+                                    <span>@(lecture.Instructor ?? "Educator")</span>
+                                </div>
+                            </div>
+                        </a>
+                    </article>
+                }
+            </div>
+
+            <!-- Pagination Container -->
+            <div class="custom-pagination-wrapper" id="lecturePagination" style="display: none;">
+                <div class="pagination-summary" id="lecturePaginationSummary">
+                    Showing 1–6 of @Model.Count() lectures
+                </div>
+                <ul class="pagination-controls" id="lecturePaginationControls"></ul>
+            </div>
+
+            <!-- Empty Filter Search Result Message -->
+            <div class="no-lectures text-center py-5 d-none" id="noFilterResultsMessage">
+                <div class="text-muted mb-2"><i class="bi bi-search fs-1"></i></div>
+                <h5 class="fw-bold text-dark">No matching lectures found</h5>
+                <p class="text-muted small">Try adjusting your filters or search keywords.</p>
+            </div>
+        }
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // 1. Calculate & display static total duration for each video card
+        function formatDuration(seconds) {
+            if (!seconds || isNaN(seconds) || !isFinite(seconds)) return '0:00';
+            const totalSecs = Math.round(seconds);
+            const hrs = Math.floor(totalSecs / 3600);
+            const mins = Math.floor((totalSecs % 3600) / 60);
+            const secs = totalSecs % 60;
+            
+            if (hrs > 0) {
+                return `${hrs}:${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+            }
+            return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        }
+
+        const cards = Array.from(document.querySelectorAll('.lecture-card'));
+
+        cards.forEach(function (card) {
+            const video = card.querySelector('video.lecture-video-preview');
+            const timeLabel = card.querySelector('.time-label');
+
+            if (video && timeLabel) {
+                function updateDuration() {
+                    if (video.duration && !isNaN(video.duration) && isFinite(video.duration)) {
+                        timeLabel.textContent = formatDuration(video.duration);
+                        timeLabel.style.display = 'inline-block';
+                    }
+                }
+
+                if (video.readyState >= 1) {
+                    updateDuration();
+                } else {
+                    video.addEventListener('loadedmetadata', updateDuration, { once: true });
+                }
+
+                // Smooth hover preview
+                card.addEventListener('mouseenter', function () {
+                    if (video.readyState >= 2) {
+                        video.play().catch(function() {});
+                    }
+                });
+
+                card.addEventListener('mouseleave', function () {
+                    video.pause();
+                    video.currentTime = 0.5;
+                });
+            }
+        });
+
+        // 2. Search, Filter & Pagination Logic
+        const classPlansData = @Html.Raw(ViewBag.ClassPlansJson ?? "[]");
+        const allSubjectsList = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(allSubjects));
+
+        const searchInput = document.getElementById('search');
+        const classSelect = document.getElementById('classLevel');
+        const subjectSelect = document.getElementById('subject');
+        const topicSelect = document.getElementById('topic');
+        const versionSelect = document.getElementById('version');
+
+        const itemsPerPage = 6;
+        let currentPage = 1;
+        let filteredCards = [...cards];
+
+        function getValue(element) {
+            return element ? element.value.trim().toLowerCase() : '';
+        }
+
+        function updateSubjectDropdown() {
+            if (!subjectSelect) return;
+
+            const selectedClass = classSelect ? classSelect.value.trim() : '';
+            const currentSubject = subjectSelect.value;
+
+            let availableSubjects = [];
+            if (selectedClass) {
+                const normSelected = selectedClass.replace(/[^0-9]/g, '');
+                const plan = classPlansData.find(p => p.classLevel === normSelected || p.classLevel === selectedClass);
+                if (plan && plan.subjects) {
+                    availableSubjects = plan.subjects;
+                }
+            } else {
+                availableSubjects = allSubjectsList;
+            }
+
+            subjectSelect.innerHTML = '<option value="">All Subjects</option>';
+            availableSubjects.forEach(function (sub) {
+                const opt = document.createElement('option');
+                opt.value = sub;
+                opt.textContent = sub;
+                if (sub.toLowerCase() === currentSubject.toLowerCase()) {
+                    opt.selected = true;
+                }
+                subjectSelect.appendChild(opt);
+            });
+        }
+
+        function updateTopicDropdown() {
+            if (!topicSelect) return;
+
+            const selectedClass = classSelect ? classSelect.value.trim().replace(/[^0-9]/g, '') : '';
+            const selectedSubject = subjectSelect ? subjectSelect.value.trim().toLowerCase() : '';
+            const currentTopic = topicSelect.value;
+
+            const relevantCards = cards.filter(function (card) {
+                const cardClass = (card.dataset.class || '').replace(/[^0-9]/g, '');
+                const cardSubject = (card.dataset.subject || '').toLowerCase();
+                const matchC = !selectedClass || cardClass === selectedClass;
+                const matchS = !selectedSubject || cardSubject === selectedSubject;
+                return matchC && matchS;
+            });
+
+            const uniqueTopics = Array.from(new Set(relevantCards.map(c => c.dataset.topic).filter(Boolean))).sort();
+
+            topicSelect.innerHTML = '<option value="">All Topics</option>';
+            uniqueTopics.forEach(function (t) {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t;
+                if (t.toLowerCase() === currentTopic.toLowerCase()) {
+                    opt.selected = true;
+                }
+                topicSelect.appendChild(opt);
+            });
+        }
+
+        function applyFilters() {
+            const search = getValue(searchInput);
+            const classFilter = getValue(classSelect).replace(/[^0-9]/g, '');
+            const subjectFilter = getValue(subjectSelect);
+            const topicFilter = getValue(topicSelect);
+            const versionFilter = getValue(versionSelect);
+
+            filteredCards = cards.filter(function (card) {
+                const title = (card.dataset.title || '').toLowerCase();
+                const instructor = (card.dataset.instructor || '').toLowerCase();
+                const className = (card.dataset.class || '').toLowerCase().replace(/[^0-9]/g, '');
+                const subject = (card.dataset.subject || '').toLowerCase();
+                const topic = (card.dataset.topic || '').toLowerCase();
+                const version = (card.dataset.version || '').toLowerCase();
+
+                const matchesSearch = !search || title.includes(search) || instructor.includes(search) || topic.includes(search) || subject.includes(search);
+                const matchesClass = !classFilter || className === classFilter;
+                const matchesSubject = !subjectFilter || subject === subjectFilter;
+                const matchesTopic = !topicFilter || topic === topicFilter;
+                const matchesVersion = !versionFilter || version === versionFilter;
+
+                return matchesSearch && matchesClass && matchesSubject && matchesTopic && matchesVersion;
+            });
+
+            currentPage = 1;
+            renderPagination();
+        }
+
+        function renderPagination() {
+            const totalItems = filteredCards.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            const noResults = document.getElementById('noFilterResultsMessage');
+            const paginationWrapper = document.getElementById('lecturePagination');
+            const paginationSummary = document.getElementById('lecturePaginationSummary');
+            const paginationControls = document.getElementById('lecturePaginationControls');
+
+            if (totalItems === 0) {
+                cards.forEach(c => c.style.display = 'none');
+                if (noResults) noResults.classList.remove('d-none');
+                if (paginationWrapper) paginationWrapper.style.display = 'none';
+                return;
+            }
+
+            if (noResults) noResults.classList.add('d-none');
+
+            // Clamp current page
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+
+            // Show/hide cards for current page
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+
+            cards.forEach(c => c.style.display = 'none');
+            for (let i = startIndex; i < endIndex; i++) {
+                filteredCards[i].style.display = '';
+            }
+
+            // Update summary
+            if (paginationSummary) {
+                paginationSummary.textContent = `Showing ${startIndex + 1}–${endIndex} of ${totalItems} lectures`;
+            }
+
+            // Build controls
+            if (paginationControls) {
+                paginationControls.innerHTML = '';
+
+                if (totalPages <= 1) {
+                    if (paginationWrapper) paginationWrapper.style.display = 'none';
+                    return;
+                }
+
+                if (paginationWrapper) paginationWrapper.style.display = 'flex';
+
+                // Prev Button
+                const prevLi = document.createElement('li');
+                const prevBtn = document.createElement('button');
+                prevBtn.className = `page-btn ${currentPage === 1 ? 'disabled' : ''}`;
+                prevBtn.innerHTML = '<i class="bi bi-chevron-left"></i>';
+                prevBtn.setAttribute('aria-label', 'Previous Page');
+                prevBtn.addEventListener('click', function () {
+                    if (currentPage > 1) {
+                        currentPage--;
+                        renderPagination();
+                        const filterEl = document.getElementById('lectureFilters');
+                        if (filterEl) window.scrollTo({ top: filterEl.offsetTop - 90, behavior: 'smooth' });
+                    }
+                });
+                prevLi.appendChild(prevBtn);
+                paginationControls.appendChild(prevLi);
+
+                // Page Number Buttons
+                for (let p = 1; p <= totalPages; p++) {
+                    const pageLi = document.createElement('li');
+                    const pageBtn = document.createElement('button');
+                    pageBtn.className = `page-btn ${p === currentPage ? 'active' : ''}`;
+                    pageBtn.textContent = p;
+                    pageBtn.addEventListener('click', function () {
+                        currentPage = p;
+                        renderPagination();
+                        const filterEl = document.getElementById('lectureFilters');
+                        if (filterEl) window.scrollTo({ top: filterEl.offsetTop - 90, behavior: 'smooth' });
+                    });
+                    pageLi.appendChild(pageBtn);
+                    paginationControls.appendChild(pageLi);
+                }
+
+                // Next Button
+                const nextLi = document.createElement('li');
+                const nextBtn = document.createElement('button');
+                nextBtn.className = `page-btn ${currentPage === totalPages ? 'disabled' : ''}`;
+                nextBtn.innerHTML = '<i class="bi bi-chevron-right"></i>';
+                nextBtn.setAttribute('aria-label', 'Next Page');
+                nextBtn.addEventListener('click', function () {
+                    if (currentPage < totalPages) {
+                        currentPage++;
+                        renderPagination();
+                        const filterEl = document.getElementById('lectureFilters');
+                        if (filterEl) window.scrollTo({ top: filterEl.offsetTop - 90, behavior: 'smooth' });
+                    }
+                });
+                nextLi.appendChild(nextBtn);
+                paginationControls.appendChild(nextLi);
+            }
+        }
+
+        if (classSelect) {
+            classSelect.addEventListener('change', function () {
+                updateSubjectDropdown();
+                updateTopicDropdown();
+                applyFilters();
+            });
+        }
+
+        if (subjectSelect) {
+            subjectSelect.addEventListener('change', function () {
+                updateTopicDropdown();
+                applyFilters();
+            });
+        }
+
+        const clearBtn = document.getElementById('clearLectureFiltersBtn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function () {
+                if (searchInput) searchInput.value = '';
+                if (classSelect) classSelect.value = '';
+                if (versionSelect) versionSelect.value = '';
+                updateSubjectDropdown();
+                if (subjectSelect) subjectSelect.value = '';
+                updateTopicDropdown();
+                if (topicSelect) topicSelect.value = '';
+                applyFilters();
+                if (window.location.search) {
+                    history.replaceState(null, '', window.location.pathname);
+                }
+            });
+        }
+
+        [searchInput, topicSelect, versionSelect].forEach(function (element) {
+            if (element) {
+                element.addEventListener('input', applyFilters);
+                element.addEventListener('change', applyFilters);
+            }
+        });
+
+        // Initialize pagination on load
+        applyFilters();
+    });
+</script>

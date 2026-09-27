@@ -1,0 +1,353 @@
+@model Onudhabon_ISD.Models.DonationInitiateViewModel
+
+@{
+    ViewData["Title"] = "Donate - Onudhabon Foundation";
+    var recentDonations = (List<Onudhabon_ISD.Models.Donation>?)ViewBag.RecentDonations ?? new List<Onudhabon_ISD.Models.Donation>();
+    decimal totalDonated = (decimal)(ViewBag.TotalDonated ?? 0m);
+    int totalDonorsCount = (int)(ViewBag.TotalDonorsCount ?? 0);
+}
+
+<div class="donation-page">
+    <!-- Hero Section with Background Image -->
+    <section class="donation-hero">
+        <div class="donation-hero-overlay"></div>
+        <div class="donation-hero-content">
+            <div class="donation-hero-badge">
+                <i class="bi bi-shield-heart text-warning"></i>
+                <span>Educational Welfare Initiative</span>
+            </div>
+            <h1>Support Educational Equity</h1>
+            <p>
+                Your contribution directly funds textbooks, volunteer educator stipends, and learning materials for underprivileged students across Bangladesh.
+            </p>
+
+            <!-- Subtle Stats Badges -->
+            <div class="d-flex justify-content-center flex-wrap gap-2 gap-sm-3 text-white small">
+                <div class="px-3 py-1.5 rounded-pill bg-white bg-opacity-10 border border-white border-opacity-15">
+                    <span class="text-white-50">Total Contributed:</span>
+                    <strong class="text-white font-monospace ms-1">৳@totalDonated.ToString("N0") BDT</strong>
+                </div>
+                <div class="px-3 py-1.5 rounded-pill bg-white bg-opacity-10 border border-white border-opacity-15">
+                    <span class="text-white-50">Verified Donors:</span>
+                    <strong class="text-white font-monospace ms-1">@totalDonorsCount</strong>
+                </div>
+                <div class="px-3 py-1.5 rounded-pill bg-white bg-opacity-10 border border-white border-opacity-15 d-none d-sm-inline-block">
+                    <i class="bi bi-shield-lock text-info me-1"></i>
+                    <span class="text-white">256-Bit SSL Encrypted</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Container -->
+    <div class="container py-5" style="max-width: 1040px;">
+    <div class="row g-4 justify-content-center">
+        <!-- Donation Form -->
+        <div class="col-lg-7">
+            <div class="card border shadow-sm rounded-4 p-3 p-sm-4 p-md-5 bg-white">
+                <div class="d-flex align-items-center justify-content-between mb-4 pb-3 border-bottom flex-wrap gap-2">
+                    <div>
+                        <h4 class="fw-bold text-dark mb-1">Contribution Form</h4>
+                        <p class="text-muted small mb-0">Select your contribution amount and allocate funds.</p>
+                    </div>
+                    <span class="badge bg-light text-secondary border px-3 py-1.5 rounded-pill small">
+                        <i class="bi bi-lock-fill me-1 text-primary"></i> Secure Gateway
+                    </span>
+                </div>
+
+                <form id="donationForm">
+                    @Html.AntiForgeryToken()
+                    <div id="formErrorMessage" class="alert alert-danger rounded-3 mb-3 d-none"></div>
+
+                    <!-- Amount Selection -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-dark small text-uppercase" style="letter-spacing: 0.04em;">Select Amount (BDT)</label>
+                        <div class="row g-2 mb-3" id="presetAmountsContainer">
+                            <div class="col-6 col-sm-3">
+                                <button type="button" class="btn btn-outline-secondary w-100 py-2.5 rounded-3 fw-semibold preset-btn font-monospace" data-amount="200">
+                                    ৳200
+                                </button>
+                            </div>
+                            <div class="col-6 col-sm-3">
+                                <button type="button" class="btn btn-outline-secondary w-100 py-2.5 rounded-3 fw-semibold preset-btn active btn-primary text-white border-primary font-monospace" data-amount="500">
+                                    ৳500
+                                </button>
+                            </div>
+                            <div class="col-6 col-sm-3">
+                                <button type="button" class="btn btn-outline-secondary w-100 py-2.5 rounded-3 fw-semibold preset-btn font-monospace" data-amount="1000">
+                                    ৳1,000
+                                </button>
+                            </div>
+                            <div class="col-6 col-sm-3">
+                                <button type="button" class="btn btn-outline-secondary w-100 py-2.5 rounded-3 fw-semibold preset-btn font-monospace" data-amount="2500">
+                                    ৳2,500
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-dark fw-bold border-end-0 rounded-start-3">BDT (৳)</span>
+                            <input asp-for="Amount" type="number" id="customAmountInput" class="form-control border-start-0 rounded-end-3 fw-bold text-dark font-monospace py-2" min="10" max="500000" placeholder="Custom amount (Min ৳10)" value="500" required />
+                        </div>
+                        <span asp-validation-for="Amount" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Program Allocation -->
+                    <div class="mb-4">
+                        <label asp-for="Purpose" class="form-label fw-bold text-dark small text-uppercase" style="letter-spacing: 0.04em;">Program Allocation</label>
+                        <select asp-for="Purpose" id="purposeSelect" class="form-select rounded-3 py-2">
+                            <option value="General Education & Child Support Fund">General Education & Student Welfare Fund</option>
+                            <option value="Student Learning Materials & Textbooks">Core Textbooks, Stationery & Learning Kits</option>
+                            <option value="Community Classrooms & Educator Support">Community Classrooms & Educator Support</option>
+                            <option value="Digital Learning & Video Lecture Hardware">Digital Learning & Video Lecture Hardware</option>
+                        </select>
+                        <span asp-validation-for="Purpose" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Donor Details -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-dark small text-uppercase mb-2" style="letter-spacing: 0.04em;">Donor Information</label>
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <input asp-for="DonorName" id="donorNameInput" class="form-control rounded-3 py-2" placeholder="Full Name *" required />
+                                <span asp-validation-for="DonorName" class="text-danger small"></span>
+                            </div>
+                            <div class="col-sm-6">
+                                <input asp-for="DonorPhone" id="donorPhoneInput" class="form-control rounded-3 py-2" placeholder="Mobile Number (e.g. 017XXXXXXXX) *" required />
+                                <span asp-validation-for="DonorPhone" class="text-danger small"></span>
+                            </div>
+                            <div class="col-12">
+                                <input asp-for="DonorEmail" id="donorEmailInput" class="form-control rounded-3 py-2" placeholder="Email Address (Optional, for tax receipt)" />
+                            </div>
+                            <div class="col-12">
+                                <input asp-for="Message" id="donorMessageInput" class="form-control rounded-3 py-2" placeholder="Dedication or Note (Optional)" />
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input asp-for="IsAnonymous" class="form-check-input" type="checkbox" id="isAnonymousSwitch" />
+                                    <label class="form-check-label text-secondary small" for="isAnonymousSwitch">
+                                        Make contribution anonymous on public list
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Single SSLCommerz Gateway Button -->
+                    <div class="mt-4">
+                        <button type="button" 
+                                id="btnLaunchSandboxPGW" 
+                                class="btn btn-primary w-100 rounded-pill text-white fw-bold shadow-sm py-3 px-4 d-flex align-items-center justify-content-center gap-2" 
+                                style="background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%); border: none; font-size: 1.05rem; min-height: 50px;">
+                            <i class="bi bi-shield-lock-fill"></i>
+                            <span>Donate ৳<span id="btnAmountDisplay">500</span> via SSLCommerz</span>
+                        </button>
+
+                        <div class="d-flex align-items-center justify-content-center gap-2 text-muted small mt-2.5 flex-wrap text-center" style="font-size: 0.8rem;">
+                            <span><i class="bi bi-shield-check text-success me-1"></i>SSLCommerz Gateway</span>
+                            <span class="d-none d-sm-inline">•</span>
+                            <span>Visa • Mastercard • bKash • Nagad</span>
+                            <span class="d-none d-sm-inline">•</span>
+                            <span>Instant Receipt</span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Right Side: Impact & Recent Donors -->
+        <div class="col-lg-5">
+            <!-- Impact Summary -->
+            <div class="card border shadow-sm rounded-4 p-4 mb-4 bg-white">
+                <h5 class="fw-bold text-dark mb-3 d-flex align-items-center gap-2" style="font-size: 1rem;">
+                    <i class="bi bi-heart-pulse text-primary"></i>
+                    <span>Your Impact</span>
+                </h5>
+                <div class="d-flex flex-column gap-3 small text-muted">
+                    <div class="d-flex gap-3 align-items-start">
+                        <div class="about-icon-badge badge-blue flex-shrink-0" style="width: 42px; height: 42px; font-size: 1.1rem; margin-bottom: 0;">
+                            <i class="bi bi-journal-bookmark-fill"></i>
+                        </div>
+                        <div>
+                            <strong class="text-dark d-block">৳200 — Learning Materials</strong>
+                            <span>Supplies textbooks and notebooks for one student.</span>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-3 align-items-start">
+                        <div class="about-icon-badge badge-green flex-shrink-0" style="width: 42px; height: 42px; font-size: 1.1rem; margin-bottom: 0;">
+                            <i class="bi bi-mortarboard-fill"></i>
+                        </div>
+                        <div>
+                            <strong class="text-dark d-block">৳500 — Monthly Sponsorship</strong>
+                            <span>Covers monthly study materials and educator mentoring.</span>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-3 align-items-start">
+                        <div class="about-icon-badge badge-teal flex-shrink-0" style="width: 42px; height: 42px; font-size: 1.1rem; margin-bottom: 0;">
+                            <i class="bi bi-display-fill"></i>
+                        </div>
+                        <div>
+                            <strong class="text-dark d-block">৳2,500 — Community Study Hub</strong>
+                            <span>Supports classroom supplies and digital learning devices.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Contributions -->
+            <div class="card border shadow-sm rounded-4 p-4 bg-white">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2" style="font-size: 1rem;">
+                        <i class="bi bi-people-fill text-primary"></i>
+                        <span>Recent Contributions</span>
+                    </h5>
+                    <span class="badge bg-success-subtle text-success rounded-pill px-2.5 py-1 small">Verified</span>
+                </div>
+
+                <div id="recentDonorsList" class="d-flex flex-column gap-2">
+                    @if (recentDonations.Any())
+                    {
+                        @foreach (var d in recentDonations.Take(5))
+                        {
+                            <div class="p-2.5 bg-light bg-opacity-50 rounded-3 d-flex justify-content-between align-items-center small border">
+                                <div>
+                                    <div class="fw-semibold text-dark">@(d.IsAnonymous ? "Anonymous Benefactor" : d.DonorName)</div>
+                                    <div class="text-muted" style="font-size: 0.72rem;">@d.Purpose</div>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge rounded-pill px-2.5 py-1 text-white bg-primary font-monospace">
+                                        ৳@d.Amount.ToString("N0")
+                                    </span>
+                                    <div class="text-muted mt-0.5" style="font-size: 0.68rem;">@d.CreatedAt.ToString("MMM dd, yyyy")</div>
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted py-3 small">No recent public contributions recorded.</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const customAmountInput = document.getElementById('customAmountInput');
+            const presetButtons = document.querySelectorAll('.preset-btn');
+            const btnAmountDisplay = document.getElementById('btnAmountDisplay');
+            const btnLaunchSandboxPGW = document.getElementById('btnLaunchSandboxPGW');
+            const formErrorMessage = document.getElementById('formErrorMessage');
+
+            // Handle Preset Amount Clicks
+            presetButtons.forEach(btn => {
+                btn.addEventListener('click', function () {
+                    presetButtons.forEach(b => {
+                        b.classList.remove('active', 'btn-primary', 'text-white', 'border-primary');
+                        b.classList.add('btn-outline-secondary');
+                    });
+                    this.classList.remove('btn-outline-secondary');
+                    this.classList.add('active', 'btn-primary', 'text-white', 'border-primary');
+                    
+                    const amt = this.getAttribute('data-amount');
+                    customAmountInput.value = amt;
+                    btnAmountDisplay.textContent = Number(amt).toLocaleString();
+                });
+            });
+
+            // Handle Custom Amount Input
+            customAmountInput.addEventListener('input', function () {
+                const val = parseFloat(this.value) || 0;
+                btnAmountDisplay.textContent = val.toLocaleString();
+                presetButtons.forEach(b => {
+                    if (b.getAttribute('data-amount') === this.value) {
+                        b.classList.remove('btn-outline-secondary');
+                        b.classList.add('active', 'btn-primary', 'text-white', 'border-primary');
+                    } else {
+                        b.classList.remove('active', 'btn-primary', 'text-white', 'border-primary');
+                        b.classList.add('btn-outline-secondary');
+                    }
+                });
+            });
+
+            // Launch SSLCommerz Payment Gateway
+            if (btnLaunchSandboxPGW) {
+                btnLaunchSandboxPGW.addEventListener('click', function () {
+                    formErrorMessage.classList.add('d-none');
+
+                    const donorName = document.getElementById('donorNameInput').value.trim();
+                    const donorPhone = document.getElementById('donorPhoneInput').value.trim();
+                    const amount = parseFloat(customAmountInput.value);
+
+                    if (!donorName) {
+                        formErrorMessage.textContent = 'Please enter your Full Name before proceeding.';
+                        formErrorMessage.classList.remove('d-none');
+                        document.getElementById('donorNameInput').focus();
+                        return;
+                    }
+
+                    if (!donorPhone) {
+                        formErrorMessage.textContent = 'Please enter your mobile phone number.';
+                        formErrorMessage.classList.remove('d-none');
+                        document.getElementById('donorPhoneInput').focus();
+                        return;
+                    }
+
+                    if (!amount || amount < 10) {
+                        formErrorMessage.textContent = 'Minimum donation amount is ৳10.';
+                        formErrorMessage.classList.remove('d-none');
+                        customAmountInput.focus();
+                        return;
+                    }
+
+                    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+                    const payload = {
+                        DonorName: donorName,
+                        DonorEmail: document.getElementById('donorEmailInput').value.trim() || null,
+                        DonorPhone: donorPhone,
+                        Amount: amount,
+                        Purpose: document.getElementById('purposeSelect').value,
+                        Message: document.getElementById('donorMessageInput').value.trim() || null,
+                        IsAnonymous: document.getElementById('isAnonymousSwitch').checked
+                    };
+
+                    btnLaunchSandboxPGW.disabled = true;
+                    btnLaunchSandboxPGW.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Connecting to SSLCommerz...';
+
+                    fetch('/Donation/InitiateSandboxPayment', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'RequestVerificationToken': token
+                        },
+                        body: JSON.stringify(payload)
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data && data.success && data.gatewayUrl) {
+                            // Redirect directly to SSLCommerz checkout
+                            window.location.href = data.gatewayUrl;
+                        } else {
+                            btnLaunchSandboxPGW.disabled = false;
+                            btnLaunchSandboxPGW.innerHTML = '<i class="bi bi-shield-lock-fill"></i> <span>Donate ৳<span id="btnAmountDisplay">' + Number(amount).toLocaleString() + '</span> via SSLCommerz</span>';
+                            formErrorMessage.textContent = data.message || 'Failed to initialize payment gateway session.';
+                            formErrorMessage.classList.remove('d-none');
+                        }
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        btnLaunchSandboxPGW.disabled = false;
+                        btnLaunchSandboxPGW.innerHTML = '<i class="bi bi-shield-lock-fill"></i> <span>Donate ৳<span id="btnAmountDisplay">' + Number(amount).toLocaleString() + '</span> via SSLCommerz</span>';
+                        formErrorMessage.textContent = 'Error connecting to payment gateway server. Please try again.';
+                        formErrorMessage.classList.remove('d-none');
+                    });
+                });
+            }
+        });
+    </script>
+}

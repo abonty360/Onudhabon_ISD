@@ -1,0 +1,475 @@
+@model IEnumerable<Onudhabon_ISD.Models.Material>
+@inject Onudhabon_ISD.Services.ICloudinaryService CloudinaryService
+
+@{
+    ViewData["Title"] = "Study Materials & Notes - Onudhabon";
+
+    var classPlans = ViewBag.ClassPlans as List<Onudhabon_ISD.Models.ClassPlan>;
+    var allSubjects = ViewBag.AllSubjects as List<string> ?? new List<string>();
+
+    var topics = Model
+        .Where(m => !string.IsNullOrWhiteSpace(m.Topic))
+        .Select(m => m.Topic!)
+        .Distinct()
+        .OrderBy(x => x)
+        .ToList();
+}
+
+<div class="material-page">
+    <section class="material-hero">
+        <div class="material-hero-overlay"></div>
+        <div class="material-hero-content">
+            <div class="material-breadcrumb">Home/Materials</div>
+            <h1>Learning Resources for Every Journey</h1>
+            <p>Access a growing library of study materials, guides, and tools created by our dedicated community. From foundational concepts to advanced topics, these resources are here to support every learner's path toward success.</p>
+        </div>
+    </section>
+
+    <main class="material-content">
+        <div class="material-heading-row">
+            <h2>Study Materials</h2>
+            @if (User.Identity != null && User.Identity.IsAuthenticated && (User.IsInRole("Educator") || User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value == "Educator"))
+            {
+                <a asp-action="Upload" class="material-upload-btn">Upload Material</a>
+            }
+        </div>
+
+        <form method="get" asp-action="Index" class="material-filters" id="materialFilters">
+            <div class="material-filter-field material-search-field">
+                <label for="material-search">Search</label>
+                <input id="material-search" name="search" type="text" placeholder="Search materials, instructors, or topics" value="@(ViewBag.Search ?? Context.Request.Query["search"])" />
+            </div>
+            <div class="material-filter-field">
+                <label for="classLevel">Class</label>
+                <select id="classLevel" name="classLevel">
+                    <option value="">All Classes</option>
+                    @if (classPlans != null)
+                    {
+                        @foreach (var plan in classPlans)
+                        {
+                            var norm = Onudhabon_ISD.Data.ClassPlanHelper.NormalizeClassLevel(plan.ClassLevel);
+                            var isSel = (ViewBag.ClassLevel == norm || ViewBag.ClassLevel == plan.ClassLevel || Context.Request.Query["classLevel"] == norm);
+                            <option value="@norm" selected="@isSel">Class @norm</option>
+                        }
+                    }
+                    else
+                    {
+                        @for (int i = 1; i <= 12; i++)
+                        {
+                            <option value="@i" selected="@(Context.Request.Query["classLevel"] == i.ToString())">Class @i</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="material-filter-field">
+                <label for="subject">Subject</label>
+                <select id="subject" name="subject">
+                    <option value="">All Subjects</option>
+                    @foreach (var item in allSubjects)
+                    {
+                        <option value="@item" selected="@(ViewBag.Subject == item || Context.Request.Query["subject"] == item)">@item</option>
+                    }
+                </select>
+            </div>
+            <div class="material-filter-field">
+                <label for="topic">Topic</label>
+                <select id="topic" name="topic">
+                    <option value="">All Topics</option>
+                    @foreach (var item in topics)
+                    {
+                        <option value="@item" selected="@(ViewBag.Topic == item || Context.Request.Query["topic"] == item)">@item</option>
+                    }
+                </select>
+            </div>
+            <div class="material-filter-field">
+                <label for="version">Version</label>
+                <select id="version" name="version">
+                    <option value="">Both Versions</option>
+                    <option value="Bangla" selected="@(ViewBag.Version == "Bangla" || Context.Request.Query["version"] == "Bangla")">Bangla</option>
+                    <option value="English" selected="@(ViewBag.Version == "English" || Context.Request.Query["version"] == "English")">English</option>
+                </select>
+            </div>
+            <div class="material-filter-field material-actions-field">
+                <label class="invisible" aria-hidden="true">&nbsp;</label>
+                <button type="button" class="btn btn-outline-secondary btn-material-clear d-inline-flex align-items-center justify-content-center gap-1 w-100" id="clearMaterialFiltersBtn" title="Clear search and filters">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                    <span>Clear</span>
+                </button>
+            </div>
+        </form>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (!Model.Any())
+    {
+        <div class="material-empty-state">
+            <div>
+                <div class="mb-3 text-muted">
+                    <svg width="54" height="54" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </div>
+                <h5 class="fw-bold text-dark">No study materials uploaded yet</h5>
+                <p class="text-muted">Educational documents and study guides will appear here for learners.</p>
+                @if (User.Identity != null && User.Identity.IsAuthenticated && (User.IsInRole("Educator") || User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value == "Educator"))
+                {
+                    <a asp-action="Upload" class="material-upload-btn">Upload First Document</a>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="material-grid" id="materialGrid">
+            @foreach (var material in Model)
+            {
+                var isPending = string.Equals(material.Status, "pending", StringComparison.OrdinalIgnoreCase);
+                var isDeclined = string.Equals(material.Status, "declined", StringComparison.OrdinalIgnoreCase);
+                var isOwner = (User.Identity != null && User.Identity.IsAuthenticated) && !string.IsNullOrWhiteSpace(material.Instructor) && (
+                    string.Equals(material.Instructor.Trim(), User.Identity?.Name, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(material.Instructor.Trim(), User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value, StringComparison.OrdinalIgnoreCase)
+                );
+                var isAdmin = (User.Identity != null && User.Identity.IsAuthenticated) && (User.IsInRole("Admin") || User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value == "Admin");
+                var showStatus = isAdmin || isOwner || isPending || isDeclined;
+
+                <article class="material-card"
+                         data-title="@material.Title"
+                         data-instructor="@material.Instructor"
+                         data-class="@material.ClassLevel"
+                         data-subject="@material.Subject"
+                         data-topic="@material.Topic"
+                         data-version="@material.Version">
+                    <div class="material-card-body">
+                            <div class="material-card-top">
+                                <div class="material-file-icon">
+                                    <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                @if (showStatus)
+                                {
+                                    <span class="material-status @(isPending ? "pending" : (isDeclined ? "declined" : "active")) d-inline-flex align-items-center gap-1">
+                                        @if (isPending)
+                                        {
+                                            <i class="bi bi-clock-history"></i>
+                                            <span>Pending Approval</span>
+                                        }
+                                        else if (isDeclined)
+                                        {
+                                            <i class="bi bi-x-circle-fill"></i>
+                                            <span>Declined</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-check-circle-fill"></i>
+                                            <span>Active</span>
+                                        }
+                                    </span>
+                                }
+                            </div>
+
+                            <div class="material-meta">
+                                <span>Class @material.ClassLevel</span>
+                                <span>@material.Subject</span>
+                            </div>
+
+                            <h3>
+                                <a asp-action="Details" asp-route-id="@material.Id">
+                                    @material.Title
+                                </a>
+                            </h3>
+
+                            <p>
+                                @(string.IsNullOrWhiteSpace(material.Description) ? "No description provided." : material.Description)
+                            </p>
+
+                            <div class="material-card-footer">
+                                <div class="material-stats">
+                                    <span>Size: <strong>@(material.Size ?? "N/A")</strong></span>
+                                    <span>Downloads: <strong>@material.Downloads</strong></span>
+                                </div>
+                                <div class="material-actions">
+                                    <a asp-action="Details" asp-route-id="@material.Id" class="material-view-btn">
+                                        View
+                                    </a>
+                                    <a asp-action="Download" asp-route-id="@material.Id" class="material-download-btn">
+                                        Download
+                                    </a>
+                                </div>
+                            </div>
+                    </div>
+                </article>
+            }
+        </div>
+
+        <!-- Pagination Container -->
+        <div class="custom-pagination-wrapper" id="materialPagination" style="display: none;">
+            <div class="pagination-summary" id="materialPaginationSummary">
+                Showing 1–6 of @Model.Count() materials
+            </div>
+            <ul class="pagination-controls" id="materialPaginationControls"></ul>
+        </div>
+
+        <!-- Empty Filter Search Result Message -->
+        <div class="no-materials text-center py-5 d-none" id="noMaterialFilterResultsMessage">
+            <div class="text-muted mb-2"><i class="bi bi-search fs-1"></i></div>
+            <h5 class="fw-bold text-dark">No matching materials found</h5>
+            <p class="text-muted small">Try adjusting your search criteria or category filters.</p>
+        </div>
+    }
+    </main>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const cards = Array.from(document.querySelectorAll('.material-card'));
+        const classPlansData = @Html.Raw(ViewBag.ClassPlansJson ?? "[]");
+        const allSubjectsList = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(allSubjects));
+
+        const searchInput = document.getElementById('material-search');
+        const classSelect = document.getElementById('classLevel');
+        const subjectSelect = document.getElementById('subject');
+        const topicSelect = document.getElementById('topic');
+        const versionSelect = document.getElementById('version');
+
+        const itemsPerPage = 6;
+        let currentPage = 1;
+        let filteredCards = [...cards];
+
+        function getValue(element) {
+            return element ? element.value.trim().toLowerCase() : '';
+        }
+
+        function updateSubjectDropdown() {
+            if (!subjectSelect) return;
+
+            const selectedClass = classSelect ? classSelect.value.trim() : '';
+            const currentSubject = subjectSelect.value;
+
+            let availableSubjects = [];
+            if (selectedClass) {
+                const normSelected = selectedClass.replace(/[^0-9]/g, '');
+                const plan = classPlansData.find(p => p.classLevel === normSelected || p.classLevel === selectedClass);
+                if (plan && plan.subjects) {
+                    availableSubjects = plan.subjects;
+                }
+            } else {
+                availableSubjects = allSubjectsList;
+            }
+
+            subjectSelect.innerHTML = '<option value="">All Subjects</option>';
+            availableSubjects.forEach(function (sub) {
+                const opt = document.createElement('option');
+                opt.value = sub;
+                opt.textContent = sub;
+                if (sub.toLowerCase() === currentSubject.toLowerCase()) {
+                    opt.selected = true;
+                }
+                subjectSelect.appendChild(opt);
+            });
+        }
+
+        function updateTopicDropdown() {
+            if (!topicSelect) return;
+
+            const selectedClass = classSelect ? classSelect.value.trim().replace(/[^0-9]/g, '') : '';
+            const selectedSubject = subjectSelect ? subjectSelect.value.trim().toLowerCase() : '';
+            const currentTopic = topicSelect.value;
+
+            const relevantCards = cards.filter(function (card) {
+                const cardClass = (card.dataset.class || '').replace(/[^0-9]/g, '');
+                const cardSubject = (card.dataset.subject || '').toLowerCase();
+                const matchC = !selectedClass || cardClass === selectedClass;
+                const matchS = !selectedSubject || cardSubject === selectedSubject;
+                return matchC && matchS;
+            });
+
+            const uniqueTopics = Array.from(new Set(relevantCards.map(c => c.dataset.topic).filter(Boolean))).sort();
+
+            topicSelect.innerHTML = '<option value="">All Topics</option>';
+            uniqueTopics.forEach(function (t) {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t;
+                if (t.toLowerCase() === currentTopic.toLowerCase()) {
+                    opt.selected = true;
+                }
+                topicSelect.appendChild(opt);
+            });
+        }
+
+        function applyFilters() {
+            const search = getValue(searchInput);
+            const classFilter = getValue(classSelect).replace(/[^0-9]/g, '');
+            const subjectFilter = getValue(subjectSelect);
+            const topicFilter = getValue(topicSelect);
+            const versionFilter = getValue(versionSelect);
+
+            filteredCards = cards.filter(function (card) {
+                const title = (card.dataset.title || '').toLowerCase();
+                const instructor = (card.dataset.instructor || '').toLowerCase();
+                const className = (card.dataset.class || '').toLowerCase().replace(/[^0-9]/g, '');
+                const subject = (card.dataset.subject || '').toLowerCase();
+                const topic = (card.dataset.topic || '').toLowerCase();
+                const version = (card.dataset.version || '').toLowerCase();
+
+                const matchesSearch = !search || title.includes(search) || instructor.includes(search) || topic.includes(search) || subject.includes(search);
+                const matchesClass = !classFilter || className === classFilter;
+                const matchesSubject = !subjectFilter || subject === subjectFilter;
+                const matchesTopic = !topicFilter || topic === topicFilter;
+                const matchesVersion = !versionFilter || version === versionFilter;
+
+                return matchesSearch && matchesClass && matchesSubject && matchesTopic && matchesVersion;
+            });
+
+            currentPage = 1;
+            renderPagination();
+        }
+
+        function renderPagination() {
+            const totalItems = filteredCards.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            const noResults = document.getElementById('noMaterialFilterResultsMessage');
+            const paginationWrapper = document.getElementById('materialPagination');
+            const paginationSummary = document.getElementById('materialPaginationSummary');
+            const paginationControls = document.getElementById('materialPaginationControls');
+
+            if (totalItems === 0) {
+                cards.forEach(c => c.style.display = 'none');
+                if (noResults) noResults.classList.remove('d-none');
+                if (paginationWrapper) paginationWrapper.style.display = 'none';
+                return;
+            }
+
+            if (noResults) noResults.classList.add('d-none');
+
+            // Clamp current page
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+
+            // Show/hide cards for current page
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+
+            cards.forEach(c => c.style.display = 'none');
+            for (let i = startIndex; i < endIndex; i++) {
+                filteredCards[i].style.display = '';
+            }
+
+            // Update summary
+            if (paginationSummary) {
+                paginationSummary.textContent = `Showing ${startIndex + 1}–${endIndex} of ${totalItems} materials`;
+            }
+
+            // Build controls
+            if (paginationControls) {
+                paginationControls.innerHTML = '';
+
+                if (totalPages <= 1) {
+                    if (paginationWrapper) paginationWrapper.style.display = 'none';
+                    return;
+                }
+
+                if (paginationWrapper) paginationWrapper.style.display = 'flex';
+
+                // Prev Button
+                const prevLi = document.createElement('li');
+                const prevBtn = document.createElement('button');
+                prevBtn.className = `page-btn ${currentPage === 1 ? 'disabled' : ''}`;
+                prevBtn.innerHTML = '<i class="bi bi-chevron-left"></i>';
+                prevBtn.setAttribute('aria-label', 'Previous Page');
+                prevBtn.addEventListener('click', function () {
+                    if (currentPage > 1) {
+                        currentPage--;
+                        renderPagination();
+                        const filterEl = document.querySelector('.material-filters');
+                        if (filterEl) window.scrollTo({ top: filterEl.offsetTop - 90, behavior: 'smooth' });
+                    }
+                });
+                prevLi.appendChild(prevBtn);
+                paginationControls.appendChild(prevLi);
+
+                // Page Number Buttons
+                for (let p = 1; p <= totalPages; p++) {
+                    const pageLi = document.createElement('li');
+                    const pageBtn = document.createElement('button');
+                    pageBtn.className = `page-btn ${p === currentPage ? 'active' : ''}`;
+                    pageBtn.textContent = p;
+                    pageBtn.addEventListener('click', function () {
+                        currentPage = p;
+                        renderPagination();
+                        const filterEl = document.querySelector('.material-filters');
+                        if (filterEl) window.scrollTo({ top: filterEl.offsetTop - 90, behavior: 'smooth' });
+                    });
+                    pageLi.appendChild(pageBtn);
+                    paginationControls.appendChild(pageLi);
+                }
+
+                // Next Button
+                const nextLi = document.createElement('li');
+                const nextBtn = document.createElement('button');
+                nextBtn.className = `page-btn ${currentPage === totalPages ? 'disabled' : ''}`;
+                nextBtn.innerHTML = '<i class="bi bi-chevron-right"></i>';
+                nextBtn.setAttribute('aria-label', 'Next Page');
+                nextBtn.addEventListener('click', function () {
+                    if (currentPage < totalPages) {
+                        currentPage++;
+                        renderPagination();
+                        const filterEl = document.querySelector('.material-filters');
+                        if (filterEl) window.scrollTo({ top: filterEl.offsetTop - 90, behavior: 'smooth' });
+                    }
+                });
+                nextLi.appendChild(nextBtn);
+                paginationControls.appendChild(nextLi);
+            }
+        }
+
+        if (classSelect) {
+            classSelect.addEventListener('change', function () {
+                updateSubjectDropdown();
+                updateTopicDropdown();
+                applyFilters();
+            });
+        }
+
+        if (subjectSelect) {
+            subjectSelect.addEventListener('change', function () {
+                updateTopicDropdown();
+                applyFilters();
+            });
+        }
+
+        const clearBtn = document.getElementById('clearMaterialFiltersBtn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function () {
+                if (searchInput) searchInput.value = '';
+                if (classSelect) classSelect.value = '';
+                if (versionSelect) versionSelect.value = '';
+                updateSubjectDropdown();
+                if (subjectSelect) subjectSelect.value = '';
+                updateTopicDropdown();
+                if (topicSelect) topicSelect.value = '';
+                applyFilters();
+                if (window.location.search) {
+                    history.replaceState(null, '', window.location.pathname);
+                }
+            });
+        }
+
+        [searchInput, topicSelect, versionSelect].forEach(function (element) {
+            if (element) {
+                element.addEventListener('input', applyFilters);
+                element.addEventListener('change', applyFilters);
+            }
+        });
+
+        // Initialize pagination on load
+        applyFilters();
+    });
+</script>

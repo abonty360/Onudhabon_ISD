@@ -1,0 +1,353 @@
+@model Onudhabon_ISD.Models.StudentEnrollmentViewModel
+
+@{
+    ViewData["Title"] = "Official Student Admission Form - Onudhabon";
+}
+
+<div class="container py-4 py-lg-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10 col-xl-9">
+
+            <!-- Top Action & Reference Bar -->
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3.5 py-1.5 rounded-pill shadow-xs d-inline-flex align-items-center gap-2 fw-semibold">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    <span>Return to Student Progress Dashboard</span>
+                </a>
+
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-light text-dark border px-3 py-1.5 rounded-pill small font-monospace">
+                        FORM REF: ONUDHABON/ADM/@(DateTime.UtcNow.Year)
+                    </span>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1.5 rounded-pill small fw-semibold">
+                        NCTB Aligned
+                    </span>
+                </div>
+            </div>
+
+            <!-- Formal Institutional Document Card -->
+            <div class="card border-0 shadow-sm rounded-4 bg-white overflow-hidden formal-admission-card">
+                
+                <!-- Formal Document Header -->
+                <div class="p-4 p-md-5 text-center border-bottom bg-light-subtle position-relative">
+                    <div class="d-inline-flex align-items-center justify-content-center p-3.5 rounded-circle bg-primary text-white mb-3 shadow-sm">
+                        <svg width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 14v7" />
+                        </svg>
+                    </div>
+
+                    <div class="text-uppercase tracking-wider text-muted fw-bold small mb-1" style="letter-spacing: 0.12em; font-size: 0.78rem;">
+                        Onudhabon Educational Foundation • Underprivileged Student Support Program
+                    </div>
+                    <h2 class="fw-bold text-dark mb-2" style="font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.02em;">
+                        Student Admission & Guardianship Registration
+                    </h2>
+                    <p class="text-secondary mx-auto mb-0" style="max-width: 640px; font-size: 0.95rem;">
+                        Official application for enrolling an underprivileged student under authorized volunteer guardianship. Please ensure all details conform to national registration and birth certification records.
+                    </p>
+                </div>
+
+                <div class="p-4 p-md-5">
+
+                    <!-- Administrative Protocol Banner -->
+                    <div class="alert border-0 rounded-3 p-3.5 mb-4 d-flex align-items-start gap-3" style="background-color: #f0fdf4; border-left: 4px solid #16a34a !important;">
+                        <svg class="text-success flex-shrink-0 mt-0.5" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                        <div class="small text-secondary">
+                            <strong class="text-dark">Official Verification Notice:</strong> Submitted admission applications are systematically queued for administrative moderation. Academic subjects and class milestones will be mapped directly to the student's national <strong>ClassPlan</strong> curriculum.
+                        </div>
+                    </div>
+
+                    <form asp-action="Enroll" method="post" enctype="multipart/form-data" id="formalEnrollForm">
+                        @Html.AntiForgeryToken()
+
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger rounded-3 mb-4"></div>
+
+                        <!-- Hidden Guardianship Fields -->
+                        <input type="hidden" asp-for="GuardianId" />
+                        <input type="hidden" asp-for="GuardianName" />
+                        <input type="hidden" asp-for="Subjects" id="subjectsInput" />
+
+                        <!-- ================= SECTION 1: CANDIDATE DEMOGRAPHICS ================= -->
+                        <div class="formal-section-block mb-4">
+                            <div class="d-flex align-items-center gap-2 pb-2 mb-3 border-bottom">
+                                <span class="badge bg-dark text-white rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; font-size: 0.75rem;">1</span>
+                                <h5 class="fw-bold text-dark mb-0 text-uppercase small tracking-wider">Candidate Demographic & Academic Profile</h5>
+                            </div>
+
+                            <div class="row g-3">
+                                <!-- Student Full Legal Name -->
+                                <div class="col-md-7">
+                                    <label asp-for="FullName" class="form-label fw-bold text-dark small mb-1">
+                                        Candidate Full Legal Name <span class="text-danger">*</span>
+                                    </label>
+                                    <input asp-for="FullName" class="form-control rounded-3 py-2 border-light-subtle" placeholder="e.g. Nusrat Jahan" required />
+                                    <span asp-validation-for="FullName" class="text-danger small"></span>
+                                    <div class="text-muted small mt-1" style="font-size: 0.78rem;">Full name exactly as documented in Birth Certificate (BRIS) or School Registry.</div>
+                                </div>
+
+                                <!-- Birth Certificate Number (BRIS) -->
+                                <div class="col-md-5">
+                                    <label asp-for="BirthCertificateId" class="form-label fw-bold text-dark small mb-1">
+                                        Birth Registration Number (BRIS ID) <span class="text-danger">*</span>
+                                    </label>
+                                    <input asp-for="BirthCertificateId" id="birthCertificateInput" class="form-control rounded-3 py-2 border-light-subtle font-monospace" placeholder="e.g. 20109112345678901" required />
+                                    <span asp-validation-for="BirthCertificateId" class="text-danger small"></span>
+                                    <div id="birthCertValidationMsg" class="text-danger small mt-1" style="display: none;"></div>
+                                </div>
+
+                                <!-- Academic Class Level -->
+                                <div class="col-md-4">
+                                    <label asp-for="ClassLevel" class="form-label fw-bold text-dark small mb-1">
+                                        Assigned Class Level <span class="text-danger">*</span>
+                                    </label>
+                                    <select asp-for="ClassLevel" id="classLevelSelect" class="form-select rounded-3 py-2 border-light-subtle" required>
+                                        <option value="">-- Select Academic Class --</option>
+                                        @for (int i = 1; i <= 12; i++)
+                                        {
+                                            <option value="@i">Class @i (Grade @i)</option>
+                                        }
+                                    </select>
+                                    <span asp-validation-for="ClassLevel" class="text-danger small"></span>
+                                </div>
+
+                                <!-- Student Age -->
+                                <div class="col-md-4">
+                                    <label asp-for="Age" class="form-label fw-bold text-dark small mb-1">
+                                        Candidate Age (Years) <span class="text-danger">*</span>
+                                    </label>
+                                    <input asp-for="Age" type="number" min="4" max="25" class="form-control rounded-3 py-2 border-light-subtle" placeholder="14" required />
+                                    <span asp-validation-for="Age" class="text-danger small"></span>
+                                </div>
+
+                                <!-- Academic Session / Enrollment Year -->
+                                <div class="col-md-4">
+                                    <label asp-for="EnrollmentYear" class="form-label fw-bold text-dark small mb-1">
+                                        Academic Session Year
+                                    </label>
+                                    <input asp-for="EnrollmentYear" class="form-control rounded-3 py-2 border-light-subtle font-monospace" placeholder="2026" />
+                                    <span asp-validation-for="EnrollmentYear" class="text-danger small"></span>
+                                </div>
+
+                                <!-- Dynamic NCTB Curriculum Subjects Overview -->
+                                <div class="col-12" id="subjectsBadgeWrapper" style="display: none;">
+                                    <div class="p-3.5 bg-light rounded-3 border">
+                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                            <span class="fw-bold text-dark small text-uppercase">NCTB ClassPlan Curriculum Allocation</span>
+                                            <span class="badge bg-primary text-white rounded-pill small">Auto-Mapped</span>
+                                        </div>
+                                        <div id="subjectsBadges" class="d-flex flex-wrap gap-1.5"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Residential Address -->
+                                <div class="col-12">
+                                    <label asp-for="Address" class="form-label fw-bold text-dark small mb-1">
+                                        Permanent / Residential Address & Area <span class="text-danger">*</span>
+                                    </label>
+                                    <input asp-for="Address" class="form-control rounded-3 py-2 border-light-subtle" placeholder="e.g. Village: Kazipur, Thana: Kotwali, District: Sylhet, Bangladesh" required />
+                                    <span asp-validation-for="Address" class="text-danger small"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ================= SECTION 2: PARENTS & FAMILY PARTICULARS ================= -->
+                        <div class="formal-section-block mb-4">
+                            <div class="d-flex align-items-center gap-2 pb-2 mb-3 border-bottom">
+                                <span class="badge bg-dark text-white rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; font-size: 0.75rem;">2</span>
+                                <h5 class="fw-bold text-dark mb-0 text-uppercase small tracking-wider">Parental & Biological Family Information</h5>
+                            </div>
+
+                            <div class="row g-3">
+                                <!-- Father's Legal Name -->
+                                <div class="col-md-6">
+                                    <label asp-for="FatherName" class="form-label fw-bold text-dark small mb-1">Father's Full Legal Name</label>
+                                    <input asp-for="FatherName" class="form-control rounded-3 py-2 border-light-subtle" placeholder="e.g. Md. Rafiqul Islam" />
+                                    <span asp-validation-for="FatherName" class="text-danger small"></span>
+                                </div>
+
+                                <!-- Mother's Legal Name -->
+                                <div class="col-md-6">
+                                    <label asp-for="MotherName" class="form-label fw-bold text-dark small mb-1">Mother's Full Legal Name</label>
+                                    <input asp-for="MotherName" class="form-control rounded-3 py-2 border-light-subtle" placeholder="e.g. Mrs. Rashida Begum" />
+                                    <span asp-validation-for="MotherName" class="text-danger small"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ================= SECTION 3: ACCREDITED GUARDIANSHIP OVERSIGHT ================= -->
+                        <div class="formal-section-block mb-4">
+                            <div class="d-flex align-items-center gap-2 pb-2 mb-3 border-bottom">
+                                <span class="badge bg-dark text-white rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; font-size: 0.75rem;">3</span>
+                                <h5 class="fw-bold text-dark mb-0 text-uppercase small tracking-wider">Accredited Local Guardianship & Mentorship</h5>
+                            </div>
+
+                            <div class="p-3.5 bg-light rounded-3 border mb-3">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width: 44px; height: 44px;">
+                                        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-dark" style="font-size: 1rem;">
+                                            Registered Guardian / Volunteer: @(Model.GuardianName ?? User.Identity?.Name ?? "Accredited Volunteer")
+                                        </div>
+                                        <div class="text-muted small">
+                                            By submitting this application, you undertake primary responsibility for supervising this student's learning roadmap, lecture attendance, and milestone verification on Onudhabon.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ================= SECTION 4: FORMAL CONSENT DOCUMENTATION ================= -->
+                        <div class="formal-section-block mb-4">
+                            <div class="d-flex align-items-center gap-2 pb-2 mb-3 border-bottom">
+                                <span class="badge bg-dark text-white rounded-circle p-0 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; font-size: 0.75rem;">4</span>
+                                <h5 class="fw-bold text-dark mb-0 text-uppercase small tracking-wider">Parent / Legal Guardian Consent Document</h5>
+                            </div>
+
+                            <div class="p-3.5 bg-light rounded-3 border">
+                                <label asp-for="ConsentLetterFile" class="form-label fw-bold text-dark small mb-1">
+                                    Upload Signed Parental Consent Letter / Authorization Document <span class="text-muted fw-normal">(Optional)</span>
+                                </label>
+                                <input asp-for="ConsentLetterFile" type="file" accept=".pdf,image/png,image/jpeg" class="form-control rounded-3 py-2 bg-white border-light-subtle" />
+                                <span asp-validation-for="ConsentLetterFile" class="text-danger small"></span>
+                                <div class="text-muted small mt-2 d-flex align-items-center gap-2" style="font-size: 0.8rem;">
+                                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="text-primary flex-shrink-0">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                    </svg>
+                                    <span>Supported Formats: PDF, PNG, JPG (Max 10MB). Scanned copy of the written consent letter signed by the student's legal parent or guardian.</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ================= SECTION 5: FORMAL UNDERTAKING DECLARATION ================= -->
+                        <div class="p-3.5 bg-light rounded-3 border mb-4">
+                            <div class="form-check">
+                                <input asp-for="DeclarationCertified" class="form-check-input" type="checkbox" id="declarationCheck" checked required />
+                                <label class="form-check-label text-dark small fw-semibold" for="declarationCheck">
+                                    I hereby certify and solemnly affirm that all particulars, identification records, and demographic information provided herein are accurate, genuine, and verified to the best of my knowledge.
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 pt-3 border-top">
+                            <a asp-action="Index" class="btn btn-outline-secondary px-4 py-2.5 rounded-pill fw-semibold">
+                                Cancel
+                            </a>
+
+                            <button type="submit" class="btn btn-primary px-5 py-2.5 rounded-pill shadow-sm fw-bold d-inline-flex align-items-center gap-2">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>Submit Formal Admission Application</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .formal-admission-card {
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.06) !important;
+    }
+
+    .formal-section-block {
+        background-color: #ffffff;
+    }
+
+    .tracking-wider {
+        letter-spacing: 0.05em;
+    }
+</style>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const classSelect = document.getElementById('classLevelSelect');
+            const subjectsInput = document.getElementById('subjectsInput');
+            const subjectsBadgeWrapper = document.getElementById('subjectsBadgeWrapper');
+            const subjectsBadges = document.getElementById('subjectsBadges');
+            const birthCertInput = document.getElementById('birthCertificateInput');
+            const birthCertValidationMsg = document.getElementById('birthCertValidationMsg');
+
+            function loadSubjectsForClass(classLevel) {
+                if (!classLevel) {
+                    subjectsInput.value = '';
+                    subjectsBadgeWrapper.style.display = 'none';
+                    subjectsBadges.innerHTML = '';
+                    return;
+                }
+
+                fetch('/Student/GetClassPlanSubjects?classLevel=' + encodeURIComponent(classLevel))
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.subjects && data.subjects.length > 0) {
+                            subjectsInput.value = data.formatted;
+                            subjectsBadges.innerHTML = '';
+                            data.subjects.forEach(subject => {
+                                const badge = document.createElement('span');
+                                badge.className = 'badge bg-white text-dark border rounded-pill px-3 py-1.5 fw-medium shadow-xs';
+                                badge.textContent = subject;
+                                subjectsBadges.appendChild(badge);
+                            });
+                            subjectsBadgeWrapper.style.display = 'block';
+                        } else {
+                            subjectsInput.value = 'General Curriculum';
+                            subjectsBadgeWrapper.style.display = 'none';
+                            subjectsBadges.innerHTML = '';
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Failed to load class plan subjects:', err);
+                    });
+            }
+
+            if (classSelect) {
+                classSelect.addEventListener('change', function () {
+                    loadSubjectsForClass(this.value);
+                });
+
+                if (classSelect.value) {
+                    loadSubjectsForClass(classSelect.value);
+                }
+            }
+
+            // Real-time unique validation for Birth Certificate ID
+            if (birthCertInput) {
+                birthCertInput.addEventListener('blur', function () {
+                    const idVal = this.value.trim();
+                    if (!idVal) {
+                        birthCertValidationMsg.style.display = 'none';
+                        return;
+                    }
+
+                    fetch('/Student/CheckBirthCertificateId?birthCertificateId=' + encodeURIComponent(idVal))
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data && !data.isUnique) {
+                                birthCertValidationMsg.textContent = 'Notice: This Birth Registration Number is already enrolled in the system.';
+                                birthCertValidationMsg.style.display = 'block';
+                            } else {
+                                birthCertValidationMsg.style.display = 'none';
+                            }
+                        })
+                        .catch(err => console.error('Birth cert check error:', err));
+                });
+            }
+        });
+    </script>
+}

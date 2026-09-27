@@ -1,50 +1,460 @@
-﻿<!DOCTYPE html>
+@using System.Security.Claims
+@inject Onudhabon_ISD.Services.ICloudinaryService CloudinaryService
+@inject Onudhabon_ISD.Data.ApplicationDbContext DbContext
+
+@{
+    string? userPicture = null;
+    string? userRole = null;
+    if (User.Identity != null && User.Identity.IsAuthenticated)
+    {
+        userPicture = User.FindFirst("Picture")?.Value;
+        userRole = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (string.IsNullOrEmpty(userPicture))
+        {
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (int.TryParse(userIdStr, out int uid))
+            {
+                var dbUser = DbContext.Users.Find(uid);
+                userPicture = dbUser?.Picture;
+                if (string.IsNullOrEmpty(userRole))
+                {
+                    userRole = dbUser?.Role;
+                }
+            }
+        }
+    }
+
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
+    var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
+    bool isHeroPage = (currentController == "Home" && (currentAction == "Index" || string.IsNullOrEmpty(currentAction) || currentAction == "About"))
+                   || (currentController == "Lecture" && currentAction == "Index")
+                   || (currentController == "Material" && currentAction == "Index")
+                   || (currentController == "Forum" && (currentAction == "Index" || string.IsNullOrEmpty(currentAction)))
+                   || (currentController == "Donation" && (currentAction == "Index" || string.IsNullOrEmpty(currentAction)));
+}
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Onudhabon_ISD</title>
+    <title>@ViewData["Title"] - Onudhabon</title>
+    <link rel="icon" type="image/png" href="~/images/tab_logo.png" asp-append-version="true" />
+    <link rel="shortcut icon" type="image/png" href="~/images/tab_logo.png" asp-append-version="true" />
+    <link rel="apple-touch-icon" href="~/images/tab_logo.png" />
     <script type="importmap"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Onudhabon_ISD.styles.css" asp-append-version="true" />
 </head>
-<body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container-fluid">
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">Onudhabon_ISD</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+<body class="d-flex flex-column min-vh-100 @(isHeroPage ? "has-hero" : "")">
+    <header class="site-header @(isHeroPage ? "header-transparent" : "header-solid")" id="siteHeader">
+        <nav class="navbar navbar-expand-lg navbar-dark main-navbar">
+            <div class="container-fluid px-lg-4 px-3">
+                <!-- Logo -->
+                <a class="navbar-brand d-flex align-items-center me-lg-4 me-2" asp-area="" asp-controller="Home" asp-action="Index">
+                    <img src="~/images/navbar_logo.png" asp-append-version="true" alt="Onudhabon" class="navbar-logo-default" style="height: 38px; width: auto;" />
+                    <img src="~/images/navbar_logo_scrolled.png" asp-append-version="true" alt="Onudhabon" class="navbar-logo-scrolled" style="height: 38px; width: auto;" />
+                </a>
+
+                <!-- Mobile toggler -->
+                <button class="navbar-toggler border-0 text-white shadow-none px-2 py-1" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent"
                         aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
+
+                <div class="navbar-collapse collapse d-lg-inline-flex justify-content-between" id="navbarSupportedContent">
+                    <!-- Center/Left Navigation -->
+                    <ul class="navbar-nav flex-grow-1 align-items-lg-center">
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
+                            <a class="nav-link @(currentController == "Home" && (currentAction == "Index" || string.IsNullOrEmpty(currentAction)) ? "active" : "")" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+                            <a class="nav-link @(currentController == "Lecture" && currentAction == "Index" ? "active" : "")" asp-area="" asp-controller="Lecture" asp-action="Index">Lectures</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link @(currentController == "Material" && currentAction == "Index" ? "active" : "")" asp-area="" asp-controller="Material" asp-action="Index">Materials</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @(currentController == "Home" && currentAction == "About" ? "active" : "")" asp-area="" asp-controller="Home" asp-action="About">About</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @(currentController == "Forum" ? "active" : "")" asp-area="" asp-controller="Forum" asp-action="Index">Forum</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link nav-donate-link @(currentController == "Donation" ? "active" : "")" asp-area="" asp-controller="Donation" asp-action="Index">
+                                <i class="bi bi-shield-heart me-1 text-warning"></i> Donate
+                            </a>
+                        </li>
+                        @if (userRole == "Admin" || User.IsInRole("Admin"))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-danger fw-semibold px-3 @(currentController == "Admin" ? "active" : "")" asp-controller="Admin" asp-action="Dashboard">
+                                    <i class="bi bi-shield-lock me-1"></i> Admin Dashboard
+                                </a>
+                            </li>
+                        }
+                    </ul>
+
+                    <!-- Right Side: Profile / User Info + Logout -->
+                    <ul class="navbar-nav align-items-lg-center mt-3 mt-lg-0 gap-2">
+                        @if (User.Identity != null && User.Identity.IsAuthenticated)
+                        {
+                            @if (userRole == "Educator" || User.IsInRole("Educator"))
+                            {
+                                <li class="nav-item dropdown me-2">
+                                    <a class="btn btn-nav-action btn-sm dropdown-toggle rounded-pill px-3 py-1.5" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-cloud-arrow-up me-1"></i> Upload
+                                    </a>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 rounded-4 p-2 mt-2">
+                                        <li>
+                                            <a class="dropdown-item rounded-3 py-2" asp-controller="Lecture" asp-action="Upload">
+                                                <i class="bi bi-camera-video me-1.5 text-primary"></i> Upload Lecture Video
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item rounded-3 py-2" asp-controller="Material" asp-action="Upload">
+                                                <i class="bi bi-file-earmark-text me-1.5 text-info"></i> Upload Study Material
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </li>
+                            }
+
+                            @if (userRole == "Local Guardian" || User.IsInRole("Local Guardian"))
+                            {
+                                <li class="nav-item me-2">
+                                    <a class="btn btn-nav-action btn-sm rounded-pill px-3 py-1.5" asp-controller="Student" asp-action="Progress">
+                                        <i class="bi bi-graph-up-arrow me-1"></i> Track Progress
+                                    </a>
+                                </li>
+                                <li class="nav-item me-2">
+                                    <a class="btn btn-light text-primary btn-sm rounded-pill px-3 py-1.5 fw-semibold" asp-controller="Student" asp-action="Enroll">
+                                        <i class="bi bi-person-plus me-1"></i> Enroll Student
+                                    </a>
+                                </li>
+                            }
+
+                            <!-- Notifications Dropdown -->
+                            <li class="nav-item dropdown me-2">
+                                <a class="nav-link position-relative py-1 px-2.5 rounded-circle nav-icon-link" href="#" id="notificationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="bi bi-bell fs-5"></i>
+                                    <span id="notificationBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">
+                                        0
+                                    </span>
+                                </a>
+                                <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 rounded-4 p-2 mt-2 notification-dropdown-menu" aria-labelledby="notificationDropdown" style="max-height: 380px; overflow-y: auto;">
+                                    <li class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold text-dark">Notifications</span>
+                                        <button id="markReadBtn" class="btn btn-link btn-sm text-primary p-0 text-decoration-none small">Mark all read</button>
+                                    </li>
+                                    <div id="notificationsContainer">
+                                        <li class="px-3 py-3 text-center text-muted small">Loading notifications...</li>
+                                    </div>
+                                </ul>
+                            </li>
+
+                            <li class="nav-item dropdown">
+                                <a class="nav-link d-flex align-items-center gap-2 user-profile-link dropdown-toggle py-1 px-2.5 rounded-pill" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    @if (!string.IsNullOrWhiteSpace(userPicture))
+                                    {
+                                        <img src="@CloudinaryService.GetAvatarUrl(userPicture, 70)" 
+                                             alt="@User.Identity.Name" 
+                                             class="rounded-circle border border-2 border-white" 
+                                             style="width: 32px; height: 32px; object-fit: cover;" />
+                                    }
+                                    else
+                                    {
+                                        <div class="rounded-circle bg-white text-primary fw-bold d-flex align-items-center justify-content-center shadow-sm" 
+                                             style="width: 32px; height: 32px; font-size: 0.85rem;">
+                                            @(string.IsNullOrEmpty(User.Identity.Name) ? "U" : User.Identity.Name.Substring(0, 1).ToUpper())
+                                        </div>
+                                    }
+                                    <span class="fw-semibold user-name-text">@(User.Identity.Name)</span>
+                                </a>
+                                <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 rounded-4 p-2 mt-2 user-dropdown-menu">
+                                    <li class="px-3 py-2 border-bottom mb-1">
+                                        <div class="fw-bold text-dark">@(User.Identity.Name)</div>
+                                        <div class="text-muted small">
+                                             Role: <span class="badge @(userRole == "Admin" ? "bg-danger" : "bg-secondary") rounded-pill">@(userRole ?? "User")</span>
+                                        </div>
+                                    </li>
+                                    @if (userRole == "Admin" || User.IsInRole("Admin"))
+                                    {
+                                        <li>
+                                            <a class="dropdown-item rounded-3 py-2 text-danger fw-semibold" asp-controller="Admin" asp-action="Dashboard">
+                                                <i class="bi bi-shield-lock me-1.5 text-danger"></i> Admin Dashboard
+                                            </a>
+                                        </li>
+                                    }
+                                    <li>
+                                        <a class="dropdown-item rounded-3 py-2" asp-controller="Account" asp-action="Profile">
+                                            <i class="bi bi-person-circle me-1.5 text-secondary"></i> View Profile
+                                        </a>
+                                    </li>
+                                    @if (userRole == "Educator" || User.IsInRole("Educator"))
+                                    {
+                                        <li>
+                                            <a class="dropdown-item rounded-3 py-2" asp-controller="Lecture" asp-action="Upload">
+                                                <i class="bi bi-camera-video me-1.5 text-primary"></i> Upload Lecture
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item rounded-3 py-2" asp-controller="Material" asp-action="Upload">
+                                                <i class="bi bi-file-earmark-text me-1.5 text-info"></i> Upload Material
+                                            </a>
+                                        </li>
+                                    }
+                                    @if (userRole == "Local Guardian" || User.IsInRole("Local Guardian"))
+                                    {
+                                        <li>
+                                            <a class="dropdown-item rounded-3 py-2 fw-semibold text-primary" asp-controller="Student" asp-action="Progress">
+                                                <i class="bi bi-graph-up me-1.5 text-primary"></i> Track Student Progress
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item rounded-3 py-2" asp-controller="Student" asp-action="Index">
+                                                <i class="bi bi-mortarboard me-1.5 text-success"></i> My Enrolled Students
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item rounded-3 py-2" asp-controller="Student" asp-action="Enroll">
+                                                <i class="bi bi-person-plus me-1.5 text-primary"></i> Enroll New Student
+                                            </a>
+                                        </li>
+                                    }
+                                </ul>
+                            </li>
+
+                            <!-- Small Logout button -->
+                            <li class="nav-item">
+                                <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline m-0">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-logout d-inline-flex align-items-center gap-1.5 rounded-pill px-3 py-1 fw-semibold">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                            <polyline points="16 17 21 12 16 7"></polyline>
+                                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                                        </svg>
+                                        <span>Logout</span>
+                                    </button>
+                                </form>
+                            </li>
+                        }
+                        else
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link btn-nav-login btn-sm px-3.5 py-1 rounded-pill" asp-area="" asp-controller="Account" asp-action="Login">Login</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link btn-nav-register btn-sm px-3.5 py-1 fw-semibold rounded-pill" asp-area="" asp-controller="Account" asp-action="Register">Register</a>
+                            </li>
+                        }
                     </ul>
                 </div>
             </div>
         </nav>
     </header>
-    <div class="container">
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
-    </div>
+    
+    <main role="main" class="flex-grow-1">
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="container mt-3">
+                <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center gap-2 mb-3" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0"></i>
+                    <div>@TempData["ErrorMessage"]</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            </div>
+        }
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="container mt-3">
+                <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center gap-2 mb-3" role="alert">
+                    <i class="bi bi-check-circle-fill fs-5 flex-shrink-0"></i>
+                    <div>@TempData["SuccessMessage"]</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            </div>
+        }
+        @if (TempData["WarningMessage"] != null)
+        {
+            <div class="container mt-3">
+                <div class="alert alert-warning alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center gap-2 mb-3" role="alert">
+                    <i class="bi bi-exclamation-circle-fill fs-5 flex-shrink-0"></i>
+                    <div>@TempData["WarningMessage"]</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            </div>
+        }
+        @RenderBody()
+    </main>
 
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - Onudhabon_ISD - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+    <footer class="site-footer mt-auto">
+        <div class="footer-inner">
+            <div class="footer-column about-column">
+                <h3>About Onudhabon</h3>
+                <p>Onudhabon is a community-driven initiative focused on providing access to quality education for children in Bangladesh. We collaborate with local educators, volunteers, and organizations to create sustainable change.</p>
+            </div>
+
+            <div class="footer-column navigation-column">
+                <h3>Navigation</h3>
+                <ul>
+                    <li><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li><a asp-controller="Lecture" asp-action="Index">Lectures</a></li>
+                    <li><a asp-controller="Material" asp-action="Index">Materials</a></li>
+                    <li><a asp-controller="Home" asp-action="About">About Us</a></li>
+                    <li><a asp-controller="Forum" asp-action="Index">Forum</a></li>
+                    <li><a asp-controller="Donation" asp-action="Index" class="fw-semibold text-primary"><i class="bi bi-shield-heart me-1 text-primary"></i> Donate to Onudhabon</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-column connect-column">
+                <h3>Connect</h3>
+                <ul>
+                    <li><a href="https://facebook.com" target="_blank" rel="noopener noreferrer"><i class="bi bi-facebook me-1"></i> Facebook</a></li>
+                    <li><a href="https://instagram.com" target="_blank" rel="noopener noreferrer"><i class="bi bi-instagram me-1"></i> Instagram</a></li>
+                    <li><a href="mailto:support@onudhabon.com"><i class="bi bi-envelope me-1"></i> Contact Us</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            &copy; @DateTime.Now.Year Onudhabon. All rights reserved.
         </div>
     </footer>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    @if (User.Identity != null && User.Identity.IsAuthenticated)
+    {
+        <script>
+            $(document).ready(function () {
+                function fetchNotifications() {
+                    $.get('/Forum/GetNotifications', function (data) {
+                        var container = $('#notificationsContainer');
+                        container.empty();
+                        var unreadCount = 0;
+
+                        if (!data || data.length === 0) {
+                            container.append('<li class="px-3 py-3 text-center text-muted small">No notifications yet.</li>');
+                            $('#notificationBadge').addClass('d-none').text(0);
+                            return;
+                        }
+
+                        $.each(data, function (i, n) {
+                            if (!n.isRead) unreadCount++;
+
+                            var icon = '<i class="bi bi-bell-fill text-primary me-1"></i>';
+                            var actionText = 'sent a notification regarding';
+                            var targetUrl = '/';
+
+                            if (n.type === 'Like') {
+                                icon = '<i class="bi bi-heart-fill text-danger me-1"></i>';
+                                actionText = 'liked your post';
+                                targetUrl = '/Forum#post-' + n.postId;
+                            } else if (n.type === 'Comment') {
+                                icon = '<i class="bi bi-chat-dots-fill text-primary me-1"></i>';
+                                actionText = 'commented on your post';
+                                targetUrl = '/Forum#post-' + n.postId;
+                            } else if (n.type === 'LectureApproved' || n.type === 'Lecture') {
+                                icon = '<i class="bi bi-play-circle-fill text-success me-1"></i>';
+                                actionText = 'approved your lecture';
+                                targetUrl = '/Lecture';
+                            } else if (n.type === 'MaterialApproved' || n.type === 'Material') {
+                                icon = '<i class="bi bi-file-earmark-check-fill text-success me-1"></i>';
+                                actionText = 'approved your study material';
+                                targetUrl = '/Material';
+                            } else if (n.type === 'StudentApproved' || n.type === 'Student') {
+                                icon = '<i class="bi bi-person-check-fill text-success me-1"></i>';
+                                actionText = 'approved student enrollment for';
+                                targetUrl = '/Student';
+                            } else if (n.type === 'PostApproved') {
+                                icon = '<i class="bi bi-check-circle-fill text-success me-1"></i>';
+                                actionText = 'approved your forum post';
+                                targetUrl = '/Forum#post-' + n.postId;
+                            } else if (n.type === 'UserApproved') {
+                                icon = '<i class="bi bi-patch-check-fill text-success me-1"></i>';
+                                actionText = 'approved your volunteer account';
+                                targetUrl = '/';
+                            }
+                            
+                            // Unread notifications get a light blue highlight, read ones stay white
+                            var unreadBg = n.isRead ? 'bg-white' : 'bg-primary-subtle border-start border-primary border-3';
+
+                            var item = '<li class="px-3 py-2 border-bottom small notification-item ' + unreadBg + '" style="cursor: pointer;" data-notif-id="' + n.id + '" data-url="' + targetUrl + '">' +
+                                '<div>' + icon + ' <strong>' + (n.sender || 'Admin') + '</strong> ' + actionText + ' <em>"' + (n.post || '') + '"</em></div>' +
+                                '<div class="text-muted text-end mt-1" style="font-size: 0.75rem;">' + n.createdAt + '</div>' +
+                                '</li>';
+                            container.append(item);
+                        });
+
+                        if (unreadCount > 0) {
+                            $('#notificationBadge').removeClass('d-none').text(unreadCount);
+                        } else {
+                            $('#notificationBadge').addClass('d-none').text(0);
+                        }
+                    });
+                }
+
+                // Handle notification item click
+                $(document).on('click', '.notification-item', function () {
+                    var notifId = $(this).data('notif-id');
+                    var targetUrl = $(this).data('url');
+
+                    // Mark this notification as read in database
+                    $.post('/Forum/MarkSingleNotificationAsRead', { id: notifId }, function () {
+                        window.location.href = targetUrl;
+                    });
+                });
+
+                fetchNotifications();
+                setInterval(fetchNotifications, 10000); // Check every 10 seconds
+
+                $('#markReadBtn').click(function (e) {
+                    e.preventDefault();
+                    $.post('/Forum/MarkNotificationsAsRead', function (res) {
+                        if (res.success) {
+                            fetchNotifications();
+                        }
+                    });
+                });
+            });
+        </script>
+    }
+    <script>
+        (function () {
+            const siteHeader = document.getElementById('siteHeader');
+            if (!siteHeader) return;
+
+            function checkScroll() {
+                const scrollPos = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+                if (scrollPos > 15) {
+                    siteHeader.classList.add('header-scrolled');
+                } else {
+                    siteHeader.classList.remove('header-scrolled');
+                }
+            }
+
+            window.addEventListener('scroll', checkScroll, { passive: true });
+            document.addEventListener('scroll', checkScroll, { passive: true });
+            window.addEventListener('resize', checkScroll, { passive: true });
+            window.addEventListener('load', checkScroll);
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', checkScroll);
+            } else {
+                checkScroll();
+            }
+        })();
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
+
+    <!-- Floating AI Chatbot Widget -->
+    <partial name="_ChatWidget" />
 </body>
 </html>

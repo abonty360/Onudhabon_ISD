@@ -1,0 +1,104 @@
+@{
+    Layout = null;
+    ViewData["Title"] = (ViewBag.Title as string) ?? "Email Verification - Onudhabon";
+    bool isSuccess = (ViewBag.Success as bool?) ?? false;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/login.css" asp-append-version="true" />
+    <style>
+        .result-icon-badge {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .result-icon-badge.success {
+            background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+            color: #15803d;
+        }
+
+        .result-icon-badge.error {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #b91c1c;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-page-container">
+        <div class="login-card" style="max-width: 480px;">
+            <!-- Logo Section -->
+            <div class="logo-section">
+                <a asp-controller="Home" asp-action="Index" class="logo-link">
+                    <img src="~/images/login_logo.png" asp-append-version="true" alt="Onudhabon Logo" class="logo-icon" />
+                </a>
+                <h1 class="app-title">Onudhabon</h1>
+                <div class="subtitle">Exploring Education</div>
+            </div>
+
+            <div class="px-4 pt-2 pb-4 text-center">
+                @if (isSuccess)
+                {
+                    <div class="result-icon-badge success shadow-sm">
+                        <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+
+                    <h3 class="fw-bold text-dark mb-2">@(ViewBag.Title ?? "Email Verified!")</h3>
+                    <p class="text-secondary mb-4" style="line-height: 1.6;">
+                        @(ViewBag.Message ?? "Your email address has been successfully verified! Your account is now being reviewed by our administrators.")
+                    </p>
+
+                    <a asp-controller="Account" asp-action="Login" class="btn-submit text-decoration-none d-inline-flex justify-content-center align-items-center gap-2">
+                        <span>Proceed to Sign In</span>
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </a>
+                }
+                else
+                {
+                    <div class="result-icon-badge error shadow-sm">
+                        <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+
+                    <h3 class="fw-bold text-dark mb-2">@(ViewBag.Title ?? "Verification Failed")</h3>
+                    <p class="text-secondary mb-4" style="line-height: 1.6;">
+                        @(ViewBag.Message ?? "The verification link is invalid or has expired.")
+                    </p>
+
+                    <div class="d-flex flex-column gap-2">
+                        @if (ViewBag.Email != null)
+                        {
+                            <a asp-controller="Account" asp-action="VerifyOtp" asp-route-email="@ViewBag.Email" class="btn-submit text-decoration-none d-inline-flex justify-content-center align-items-center gap-2">
+                                <span>Enter OTP Code</span>
+                            </a>
+                        }
+                        <a asp-controller="Account" asp-action="Login" class="btn btn-outline-secondary rounded-pill py-2 text-decoration-none">
+                            Back to Sign In
+                        </a>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
