@@ -60,6 +60,101 @@ namespace Onudhabon_ISD.Controllers
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync();
 
+            var authorNames = posts
+                .Where(post => !string.IsNullOrWhiteSpace(post.Author))
+                .Select(post => post.Author!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var authorPreviews = new Dictionary<string, ForumAuthorPreviewViewModel>(StringComparer.OrdinalIgnoreCase);
+
+            if (authorNames.Count > 0)
+            {
+                var users = await _context.Users
+                    .Where(user => authorNames.Contains(user.FullName) || authorNames.Contains(user.Email))
+                    .OrderBy(user => user.Id)
+                    .Select(user => new
+                    {
+                        FullName = user.FullName,
+                        Email = user.Email,
+                        Picture = user.Picture,
+                        Role = user.Role,
+                        user.City,
+                        user.Area,
+                        user.EducationLevel,
+                        user.Major,
+                        user.UniversityName,
+                        user.HscInstitute,
+                        user.SscInstitute,
+                        MemberSince = user.CreatedAt
+                    })
+                    .ToListAsync();
+
+                foreach (var user in users)
+                {
+                    var preview = new ForumAuthorPreviewViewModel
+                    {
+                        FullName = user.FullName,
+                        Picture = user.Picture,
+                        Role = user.Role,
+                        Location = string.Join(", ", new[] { user.City, user.Area }.Where(value => !string.IsNullOrWhiteSpace(value))),
+                        Education = string.Join(" | ", new[]
+                        {
+                            user.EducationLevel,
+                            user.Major,
+                            user.UniversityName ?? user.HscInstitute ?? user.SscInstitute
+                        }.Where(value => !string.IsNullOrWhiteSpace(value))),
+                        MemberSince = user.MemberSince
+                    };
+
+                    foreach (var authorName in authorNames.Where(name =>
+                        name.Equals(user.FullName, StringComparison.OrdinalIgnoreCase) ||
+                        name.Equals(user.Email, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        authorPreviews.TryAdd(authorName, preview);
+                    }
+                }
+
+                foreach (var post in posts.Where(post => !string.IsNullOrWhiteSpace(post.Author)))
+                {
+                    authorPreviews.TryAdd(post.Author!, new ForumAuthorPreviewViewModel
+                    {
+                        FullName = post.Author!,
+                        Role = post.AuthorRole ?? "User"
+                    });
+                }
+
+                var publicForumAuthors = await _context.ForumPosts
+                    .Where(post => post.Author != null && authorNames.Contains(post.Author))
+                    .Select(post => post.Author!)
+                    .ToListAsync();
+                var publicLectureAuthors = await _context.Lectures
+                    .Where(lecture => lecture.Instructor != null && authorNames.Contains(lecture.Instructor) &&
+                        (lecture.Status != null && (lecture.Status.ToLower() == "active" || lecture.Status.ToLower() == "approved")))
+                    .Select(lecture => lecture.Instructor!)
+                    .ToListAsync();
+
+                var forumPostCounts = publicForumAuthors
+                    .GroupBy(author => author, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
+                var lectureCounts = publicLectureAuthors
+                    .GroupBy(author => author, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
+
+                foreach (var (authorName, preview) in authorPreviews)
+                {
+                    preview.ForumPostCount = forumPostCounts.GetValueOrDefault(authorName);
+                    preview.LectureCount = lectureCounts.GetValueOrDefault(authorName);
+                    if (string.IsNullOrWhiteSpace(preview.Location))
+                    {
+                        preview.Location = "—";
+                    }
+                    if (string.IsNullOrWhiteSpace(preview.Education))
+                    {
+                        preview.Education = "—";
+                    }
+                }
+            }
+
             var userReactions = new Dictionary<int, bool>(); // PostId -> IsLike (true = like, false = dislike)
             var currentUserId = GetCurrentUserId();
             if (currentUserId.HasValue)
@@ -73,7 +168,11 @@ namespace Onudhabon_ISD.Controllers
             }
 
             ViewBag.UserReactions = userReactions;
-            return View(posts);
+            return View(new ForumIndexViewModel
+            {
+                Posts = posts,
+                AuthorPreviews = authorPreviews
+            });
         }
 
         [HttpPost]
