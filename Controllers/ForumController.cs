@@ -70,11 +70,12 @@ namespace Onudhabon_ISD.Controllers
             if (authorNames.Count > 0)
             {
                 var users = await _context.Users
-                    .Where(user => authorNames.Contains(user.FullName))
+                    .Where(user => authorNames.Contains(user.FullName) || authorNames.Contains(user.Email))
                     .OrderBy(user => user.Id)
                     .Select(user => new
                     {
                         FullName = user.FullName,
+                        Email = user.Email,
                         Picture = user.Picture,
                         Role = user.Role,
                         user.City,
@@ -90,7 +91,7 @@ namespace Onudhabon_ISD.Controllers
 
                 foreach (var user in users)
                 {
-                    authorPreviews.TryAdd(user.FullName, new ForumAuthorPreviewViewModel
+                    var preview = new ForumAuthorPreviewViewModel
                     {
                         FullName = user.FullName,
                         Picture = user.Picture,
@@ -103,7 +104,14 @@ namespace Onudhabon_ISD.Controllers
                             user.UniversityName ?? user.HscInstitute ?? user.SscInstitute
                         }.Where(value => !string.IsNullOrWhiteSpace(value))),
                         MemberSince = user.MemberSince
-                    });
+                    };
+
+                    foreach (var authorName in authorNames.Where(name =>
+                        name.Equals(user.FullName, StringComparison.OrdinalIgnoreCase) ||
+                        name.Equals(user.Email, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        authorPreviews.TryAdd(authorName, preview);
+                    }
                 }
 
                 foreach (var post in posts.Where(post => !string.IsNullOrWhiteSpace(post.Author)))
@@ -116,8 +124,7 @@ namespace Onudhabon_ISD.Controllers
                 }
 
                 var publicForumAuthors = await _context.ForumPosts
-                    .Where(post => post.Author != null && authorNames.Contains(post.Author) &&
-                        (post.Status != null && (post.Status.ToLower() == "active" || post.Status.ToLower() == "approved")))
+                    .Where(post => post.Author != null && authorNames.Contains(post.Author))
                     .Select(post => post.Author!)
                     .ToListAsync();
                 var publicLectureAuthors = await _context.Lectures
