@@ -309,30 +309,30 @@
 
 @section Scripts {
     <script>
+        document.getElementById('authorPreviewModal').addEventListener('show.bs.modal', function (event) {
+            var trigger = event.relatedTarget;
+            if (!trigger) return;
+
+            var data = trigger.dataset;
+            var picture = document.getElementById('authorPreviewPicture');
+            var fallback = document.getElementById('authorPreviewFallback');
+            document.getElementById('authorPreviewName').textContent = data.authorName || 'Community Member';
+            document.getElementById('authorPreviewRole').textContent = data.authorRole || 'Community Member';
+            document.getElementById('authorPreviewLocation').textContent = data.authorLocation || '—';
+            document.getElementById('authorPreviewEducation').textContent = data.authorEducation || '—';
+            document.getElementById('authorPreviewMemberSince').textContent = data.authorMemberSince || '—';
+            document.getElementById('authorPreviewForumPosts').textContent = data.authorForumPosts || '0';
+            document.getElementById('authorPreviewLectures').textContent = data.authorLectures || '0';
+            fallback.textContent = (data.authorName || 'U').charAt(0).toUpperCase();
+            picture.alt = data.authorName || '';
+            picture.src = data.authorPicture || '';
+            picture.style.display = data.authorPicture ? 'block' : 'none';
+            fallback.style.display = data.authorPicture ? 'none' : 'flex';
+        });
+
         $(document).ready(function () {
             var isAuthenticated = @(isAuthenticated ? "true" : "false");
             var loginUrl = '@Url.Action("Login", "Account", new { returnUrl = "/Forum" })';
-
-            $('#authorPreviewModal').on('show.bs.modal', function (event) {
-                var trigger = event.relatedTarget;
-                if (!trigger) return;
-
-                var data = trigger.dataset;
-                var picture = document.getElementById('authorPreviewPicture');
-                var fallback = document.getElementById('authorPreviewFallback');
-                document.getElementById('authorPreviewName').textContent = data.authorName || 'Community Member';
-                document.getElementById('authorPreviewRole').textContent = data.authorRole || 'Community Member';
-                document.getElementById('authorPreviewLocation').textContent = data.authorLocation || '—';
-                document.getElementById('authorPreviewEducation').textContent = data.authorEducation || '—';
-                document.getElementById('authorPreviewMemberSince').textContent = data.authorMemberSince || '—';
-                document.getElementById('authorPreviewForumPosts').textContent = data.authorForumPosts || '0';
-                document.getElementById('authorPreviewLectures').textContent = data.authorLectures || '0';
-                fallback.textContent = (data.authorName || 'U').charAt(0).toUpperCase();
-                picture.alt = data.authorName || '';
-                picture.src = data.authorPicture || '';
-                picture.style.display = data.authorPicture ? 'block' : 'none';
-                fallback.style.display = data.authorPicture ? 'none' : 'flex';
-            });
 
             // Auto open & scroll to post if hash URL is provided (e.g. #post-5)
             if (window.location.hash) {
