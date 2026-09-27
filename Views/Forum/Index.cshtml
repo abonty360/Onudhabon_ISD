@@ -110,14 +110,14 @@
                         }
                     </div>
                     
-                    <div class="text-muted small mb-3">
-                        By
+                    <div class="d-flex align-items-center flex-wrap gap-2 text-muted small mb-3">
+                        <span>By</span>
                         @if (authorPreview != null)
                         {
                             var authorPictureUrl = string.IsNullOrWhiteSpace(authorPreview.Picture) ? string.Empty : CloudinaryService.GetAvatarUrl(authorPreview.Picture, 48);
                             var previewPictureUrl = string.IsNullOrWhiteSpace(authorPreview.Picture) ? string.Empty : CloudinaryService.GetAvatarUrl(authorPreview.Picture, 200);
                             <button type="button"
-                                    class="btn p-0 border-0 bg-transparent text-dark fw-semibold align-baseline d-inline-flex align-items-center gap-1"
+                                    class="btn p-0 border-0 bg-transparent text-dark fw-semibold d-inline-flex align-items-center gap-1.5"
                                     data-bs-toggle="modal"
                                     data-bs-target="#authorPreviewModal"
                                     data-author-name="@authorPreview.FullName"
@@ -131,11 +131,11 @@
                                     aria-label="View @authorPreview.FullName's public profile">
                                 @if (!string.IsNullOrEmpty(authorPictureUrl))
                                 {
-                                    <img src="@authorPictureUrl" alt="" class="rounded-circle border" style="width: 28px; height: 28px; object-fit: cover;" />
+                                    <img src="@authorPictureUrl" alt="" class="rounded-circle border flex-shrink-0" style="width: 26px; height: 26px; object-fit: cover;" />
                                 }
                                 else
                                 {
-                                    <span class="rounded-circle bg-primary-subtle text-primary fw-bold d-inline-flex align-items-center justify-content-center" style="width: 28px; height: 28px;">@(string.IsNullOrEmpty(authorPreview.FullName) ? "U" : authorPreview.FullName.Substring(0, 1).ToUpper())</span>
+                                    <span class="rounded-circle bg-primary-subtle text-primary fw-bold d-inline-flex align-items-center justify-content-center flex-shrink-0" style="width: 26px; height: 26px; font-size: 0.75rem; line-height: 1;">@(string.IsNullOrEmpty(authorPreview.FullName) ? "U" : authorPreview.FullName.Substring(0, 1).ToUpper())</span>
                                 }
                                 <span>@authorPreview.FullName</span>
                             </button>
@@ -148,7 +148,8 @@
                         {
                             <span class="text-muted">(@post.AuthorRole)</span>
                         }
-                        • @post.CreatedAt.ToString("M/d/yyyy, h:mm:ss tt")
+                        <span>•</span>
+                        <span>@post.CreatedAt.ToString("M/d/yyyy, h:mm:ss tt")</span>
                     </div>
 
                     @if (!string.IsNullOrEmpty(post.Tags))
